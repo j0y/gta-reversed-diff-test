@@ -1,0 +1,69 @@
+# Phase 0: MSVC C++23 build environment on Linux via Wine + msvc-wine
+#
+# Build:
+#   docker build -f docker/Dockerfile.build -t gta-reversed-build .
+#
+# Usage:
+#   docker run --rm -v ./gta-reversed:/src/gta-reversed:ro \
+#                   -v ./build-output:/build \
+#                   gta-reversed-build /scripts/build.sh
+
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# ---------- System packages ----------
+RUN dpkg --add-architecture i386 && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        # Wine and 32-bit support
+        wine wine32 wine64 \
+        # Build essentials
+        python3 python3-pip python3-venv \
+        ninja-build \
+        # msvc-wine dependencies
+        msitools ca-certificates \
+        # Headless runtime (Phase 2)
+        xvfb rsync \
+        # General utilities
+        git curl unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# ---------- msvc-wine: download real MSVC toolchain ----------
+WORKDIR /opt
+RUN git clone https://github.com/mstorsjo/msvc-wine.git
+
+# Download MSVC Build Tools + Windows SDK
+RUN cd /opt/msvc-wine && \
+    python3 vsdownload.py --accept-license \
+        --dest /opt/msvc \
+        --cache /tmp/msvc-cache && \
+    rm -rf /tmp/msvc-cache
+
+# Install Wine wrappers for MSVC tools.
+ENV WINEDEBUG=-all
+RUN wineboot --init && \
+    wineserver --wait && \
+    cd /opt/msvc-wine && \
+    ./install.sh /opt/msvc && \
+    wineserver --wait
+
+# Patch cl wrappers: /Zi -> /Z7 (mspdbsrv doesn't work under Wine)
+COPY docker/patch-cl-zi.sh /tmp/patch-cl-zi.sh
+RUN chmod +x /tmp/patch-cl-zi.sh && /tmp/patch-cl-zi.sh && rm /tmp/patch-cl-zi.sh
+
+# Verify: cl.exe wrapper works for x86 target
+RUN /opt/msvc/bin/x86/cl 2>&1 | head -3 ; exit 0
+
+# ---------- CMake + Conan ----------
+RUN pip3 install --no-cache-dir --break-system-packages "cmake>=3.30" "conan>=2.0,<3.0"
+RUN conan profile detect --force
+
+# ---------- Copy build scripts and toolchain ----------
+COPY docker/toolchain-msvc-wine.cmake /opt/toolchain-msvc-wine.cmake
+COPY scripts/build.sh /scripts/build.sh
+COPY scripts/test-toolchain.sh /scripts/test-toolchain.sh
+COPY scripts/conanprofile-wine.txt /opt/conanprofile-wine.txt
+RUN chmod +x /scripts/build.sh /scripts/test-toolchain.sh
+
+WORKDIR /build

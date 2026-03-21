@@ -1,0 +1,178 @@
+diff --git a/source/game_sa/Audio/AudioEngine.cpp b/source/game_sa/Audio/AudioEngine.cpp
+index c73efd71..f2460be1 100644
+--- a/source/game_sa/Audio/AudioEngine.cpp
++++ b/source/game_sa/Audio/AudioEngine.cpp
+@@ -166,6 +166,9 @@ bool CAudioEngine::Initialise() {
+ 
+ // 0x5078F0
+ void CAudioEngine::InitialisePostLoading() {
++#ifdef NOTSA_HEADLESS
++    return;
++#endif
+     m_FrontendAE.AddAudioEvent(AE_FRONTEND_LOADING_TUNE_STOP);
+     AudioEngine.Service();
+     CAECollisionAudioEntity::InitialisePostLoading();
+@@ -606,6 +609,9 @@ void CAudioEngine::ResumeAllSounds() {
+ void CAudioEngine::Service() {
+     ZoneScoped;
+ 
++#ifdef NOTSA_HEADLESS
++    return;
++#endif
+     m_FrontendAE.AddAudioEvent(AE_FRONTEND_WAKEUP_AMPLIFIER);
+     if (!CTimer::GetIsPaused())
+         m_FrontendAE.AddAudioEvent(AE_FRONTEND_RADIO_RETUNE_STOP_PAUSED);
+diff --git a/source/game_sa/Audio/Hardware/AEAudioHardware.cpp b/source/game_sa/Audio/Hardware/AEAudioHardware.cpp
+index 4d1f4b01..a12b873d 100644
+--- a/source/game_sa/Audio/Hardware/AEAudioHardware.cpp
++++ b/source/game_sa/Audio/Hardware/AEAudioHardware.cpp
+@@ -77,6 +77,19 @@ CAEAudioHardware::CAEAudioHardware() {
+ 
+ // 0x4D9930
+ bool CAEAudioHardware::Initialise() {
++#ifdef NOTSA_HEADLESS
++    m_pMP3BankLoader  = new CAEMP3BankLoader;
++    m_pMP3TrackLoader = new CAEMP3TrackLoader;
++    m_pDSDevice = nullptr;
++    m_pStreamingChannel = nullptr;
++    m_nNumChannels = 48;
++    m_IsHardwareMixAvailable = false;
++    AESmoothFadeThread.m_nNumAvailableBuffers = 48;
++    m_nNumAvailableChannels = m_nNumChannels;
++    m_bInitialised = true;
++    m_bDisableEffectsLoading = true;
++    return true;
++#endif
+     m_pMP3BankLoader  = new CAEMP3BankLoader;
+     m_pMP3TrackLoader = new CAEMP3TrackLoader;
+     if (!m_pMP3BankLoader->Initialise() || !m_pMP3TrackLoader->Initialise()) {
+@@ -301,6 +314,9 @@ void CAEAudioHardware::LoadSoundBank(eSoundBank bank, eSoundBankSlot slot) {
+ 
+ // 0x4D88C0
+ bool CAEAudioHardware::IsSoundBankLoaded(eSoundBank bank, eSoundBankSlot slot) {
++#ifdef NOTSA_HEADLESS
++    return true;
++#endif
+     return m_pMP3BankLoader->IsSoundBankLoaded(bank, slot);
+ }
+ 
+@@ -663,6 +679,9 @@ void CAEAudioHardware::Query3DSoundEffects() {
+ 
+ // 0x4D9870
+ void CAEAudioHardware::Service() {
++#ifdef NOTSA_HEADLESS
++    return;
++#endif
+     VERIFY(SUCCEEDED(m_pDirectSound3dListener->CommitDeferredSettings()));
+     RescaleChannelVolumes();
+     if (m_n3dEffectsQueryResult) {
+diff --git a/source/game_sa/Game.cpp b/source/game_sa/Game.cpp
+index 0d3da4fd..d1c61d94 100644
+--- a/source/game_sa/Game.cpp
++++ b/source/game_sa/Game.cpp
+@@ -523,6 +523,10 @@ bool CGame::Init2(const char* datFile) {
+ bool CGame::Init3(const char* datFile) {
+     ZoneScoped;
+ 
++#ifdef NOTSA_HEADLESS
++#define I3LOG(s) { HANDLE _h=CreateFileA("C:\\state5.log",FILE_APPEND_DATA,3,0,4,0x80,0); if(_h!=(HANDLE)-1){char _b[128];int _l=wsprintfA(_b,"[%lu] " s "\r\n",GetTickCount());DWORD _w;WriteFile(_h,_b,_l,&_w,0);CloseHandle(_h);} }
++    I3LOG("Init3: enter");
++#endif
+     LoadingScreen("Loading the Game", "Load scene");
+     CPad::GetPad(PED_TYPE_PLAYER1)->Clear(true, true);
+     CPad::GetPad(PED_TYPE_PLAYER2)->Clear(true, true);
+@@ -531,7 +535,14 @@ bool CGame::Init3(const char* datFile) {
+     g_interiorMan.Init();
+     g_procObjMan.Init();
+     g_waterCreatureMan.Init();
++#ifdef NOTSA_HEADLESS
++    I3LOG("Init3: before g_realTimeShadowMan");
++#endif
+     g_realTimeShadowMan.Init();
++#ifdef NOTSA_HEADLESS
++    I3LOG("Init3: done");
++#undef I3LOG
++#endif
+     return true;
+ }
+ 
+diff --git a/source/game_sa/RealTimeShadowManager.cpp b/source/game_sa/RealTimeShadowManager.cpp
+index c1b76259..8f46721b 100644
+--- a/source/game_sa/RealTimeShadowManager.cpp
++++ b/source/game_sa/RealTimeShadowManager.cpp
+@@ -24,6 +24,11 @@ void CRealTimeShadowManager::Init() {
+         return;
+     }
+ 
++#ifdef NOTSA_HEADLESS
++    m_bInitialised = true;
++    return;
++#endif
++
+     for (auto& shdw : m_apShadows) {
+         shdw = new CRealTimeShadow();
+         shdw->Create(true, 4, true);
+diff --git a/source/game_sa/Scripts/RunningScript.cpp b/source/game_sa/Scripts/RunningScript.cpp
+index 4c591d4f..e79a9888 100644
+--- a/source/game_sa/Scripts/RunningScript.cpp
++++ b/source/game_sa/Scripts/RunningScript.cpp
+@@ -890,6 +890,20 @@ OpcodeResult CRunningScript::ProcessOneCommand() {
+         VERIFY(next.Command <= COMMAND_HIGHEST_VANILLA_ID);
+     }};
+ 
++#ifdef NOTSA_HEADLESS
++    {
++        static int s_opcodeCount = 0;
++        if (++s_opcodeCount <= 200 || s_opcodeCount % 1000 == 0) {
++            HANDLE h = CreateFileA("C:\\scripts.log", FILE_APPEND_DATA, FILE_SHARE_READ|FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
++            if (h != INVALID_HANDLE_VALUE) {
++                char buf[512]; int len = wsprintfA(buf, "[%lu] Opcode #%d: script='%s' cmd=0x%X IP_offset=0x%X\r\n",
++                    GetTickCount(), s_opcodeCount, m_szName, (unsigned)op.Command, (unsigned)(m_IP - m_BaseIP));
++                DWORD written; WriteFile(h, buf, len, &written, NULL); CloseHandle(h);
++            }
++        }
++    }
++#endif
++
+ #ifdef NOTSA_SCRIPT_TRACING
+     // snprintf is faster (in debug at least) - Gotta stick to it for now
+     char msg[4096];
+diff --git a/source/game_sa/Scripts/TheScripts.cpp b/source/game_sa/Scripts/TheScripts.cpp
+index 3610a4ac..a461b324 100644
+--- a/source/game_sa/Scripts/TheScripts.cpp
++++ b/source/game_sa/Scripts/TheScripts.cpp
+@@ -1388,6 +1388,13 @@ void CTheScripts::StartTestScript() {
+ }
+ 
+ // 0x46A000
++#ifdef NOTSA_HEADLESS
++static void ScriptLog(const char* msg) {
++    HANDLE h = CreateFileA("C:\\scripts.log", FILE_APPEND_DATA, FILE_SHARE_READ|FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
++    if (h != INVALID_HANDLE_VALUE) { char buf[512]; int len = wsprintfA(buf, "[%lu] %s\r\n", GetTickCount(), msg); DWORD written; WriteFile(h, buf, len, &written, NULL); CloseHandle(h); }
++}
++#endif
++
+ void CTheScripts::Process() {
+     ZoneScoped;
+ 
+@@ -1397,6 +1404,10 @@ void CTheScripts::Process() {
+ 
+     CommandsExecuted = 0;
+ 
++#ifdef NOTSA_HEADLESS
++    ScriptLog("Process: enter");
++#endif
++
+     UpsideDownCars.UpdateTimers();
+     StuckCars.Process();
+     MissionCleanUp.CheckIfCollisionHasLoadedForMissionObjects();
+@@ -1444,6 +1455,9 @@ void CTheScripts::Process() {
+             ped.GetIntelligence()->RecordEventForScript(0, 0);
+         }
+     }
++#ifdef NOTSA_HEADLESS
++    ScriptLog("Process: done");
++#endif
+ }
+ 
+ // 0x4939F0

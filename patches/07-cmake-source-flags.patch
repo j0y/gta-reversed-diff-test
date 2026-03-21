@@ -1,0 +1,66 @@
+diff --git a/source/CMakeLists.txt b/source/CMakeLists.txt
+index fefc1370..6cb51244 100644
+--- a/source/CMakeLists.txt
++++ b/source/CMakeLists.txt
+@@ -56,7 +56,7 @@ target_link_options(${RE_PROJECT_LIB_NAME} PRIVATE
+     "$<$<CXX_COMPILER_ID:MSVC>:/INCREMENTAL>"
+ )
+ target_compile_options(${RE_PROJECT_LIB_NAME} PRIVATE
+-    "$<$<CXX_COMPILER_ID:MSVC>:/MP;/Zc:preprocessor;/ZI;/W3;/wd4200;/wd4251;/wd4275;/wd4996;/wd26495;/wd26812;/wd28159>"
++    "$<$<CXX_COMPILER_ID:MSVC>:/MP;/Zc:preprocessor;/GS-;/Zc:threadSafeInit-;/W3;/wd4200;/wd4005;/wd4251;/wd4275;/wd4996;/wd26495;/wd26812;/wd28159>"
+     "$<$<OR:$<CXX_COMPILER_ID:Clang,GCC>,$<CXX_COMPILER_ID:GNU>>:-Wall;-Wno-switch>"
+ )
+ set_target_properties(${RE_PROJECT_LIB_NAME}
+@@ -65,9 +65,10 @@ set_target_properties(${RE_PROJECT_LIB_NAME}
+     ARCHIVE_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE}/"
+     LIBRARY_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE}/"
+     RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE}/"
+-    COMPILE_WARNING_AS_ERROR ON
++    COMPILE_WARNING_AS_ERROR OFF
+ )
+-target_link_options(${RE_PROJECT_LIB_NAME} PRIVATE "/SUBSYSTEM:WINDOWS")
++target_link_options(${RE_PROJECT_LIB_NAME} PRIVATE "/SUBSYSTEM:WINDOWS"
++    "/MAP")
+ 
+ #--------------------------------------------------------------------
+ # Add dependencies
+@@ -97,7 +98,7 @@ target_link_libraries(${RE_PROJECT_LIB_NAME} PRIVATE
+     nlohmann_json::nlohmann_json
+     Ogg::ogg
+     spdlog::spdlog
+-    Tracy::TracyClient
++    
+     vorbis::vorbis
+     imgui::imgui
+     libjpeg-turbo::libjpeg-turbo
+@@ -111,7 +112,7 @@ target_link_libraries(${RE_PROJECT_LIB_NAME} PRIVATE
+ 
+ 
+ target_include_directories(${RE_PROJECT_LIB_NAME} PRIVATE
+-    /
++    ${CMAKE_CURRENT_SOURCE_DIR}
+     toolsmenu/
+     game_sa/
+     game_sa/Debug/
+@@ -176,10 +177,11 @@ target_sources(${RE_PROJECT_LIB_NAME} PRIVATE
+ target_compile_definitions(${RE_PROJECT_LIB_NAME} PRIVATE
+     _CRT_SECURE_NO_WARNINGS
+     NOMINMAX
+-    USE_GTASA_ALLOCATOR
++    USE_GTASA_ALLOCATOR_DISABLED
++    NOTSA_HEADLESS
+     EXTRA_DEBUG_FEATURES
+     FIX_BUGS
+-    NOTSA_WINDOWED_MODE # NOTE: This is a workaround for the game to run in windowed mode, and it must be enabled, otherwise shit's gonna crash
++    NOTSA_WINDOWED_MODE_DISABLED # NOTE: This is a workaround for the game to run in windowed mode, and it must be enabled, otherwise shit's gonna crash
+     SA_SKINNED_PEDS
+ 
+     USE_D3D9 # TODO
+@@ -217,6 +219,7 @@ if (${RE_PROJECT}_WITH_OPENAL)
+     target_compile_definitions(${RE_PROJECT_LIB_NAME} PRIVATE USE_OPENAL)
+ 
+     target_include_directories(${RE_PROJECT_LIB_NAME} PRIVATE
++    ${CMAKE_CURRENT_SOURCE_DIR}
+         game_sa/Audio/OpenAL
+     )
+ else()

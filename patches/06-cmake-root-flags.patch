@@ -1,0 +1,19 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 3b2645d1..4754e024 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -15,11 +15,11 @@ project(GTASA C CXX)
+ 
+ if (MSVC)
+     add_compile_options(/bigobj /utf-8)
+-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
++    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL$<$<CONFIG:Debug>:Debug>")
+ 
+     # For Edit&Continue
+-    add_compile_options(/ZI)
+-    add_link_options(/SAFESEH:NO)
++    # add_compile_options(/ZI)  # disabled for Wine build
++    add_link_options(/MAP)  # /SAFESEH:NO disabled, /MAP added for Wine build
+ endif()
+ 
+ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")

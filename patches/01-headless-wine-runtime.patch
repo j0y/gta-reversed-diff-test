@@ -1,0 +1,764 @@
+diff --git a/source/app/platform/win/WinMain.cpp b/source/app/platform/win/WinMain.cpp
+index 3ef704c6..6fe6065f 100644
+--- a/source/app/platform/win/WinMain.cpp
++++ b/source/app/platform/win/WinMain.cpp
+@@ -253,6 +253,10 @@ bool ProcessGameLogic(INT nCmdShow) {
+         break;
+     }
+     case GAME_STATE_FRONTEND_IDLE: { // 0x748CB2
++#ifdef NOTSA_HEADLESS
++        ChangeGameStateTo(GAME_STATE_LOADING_STARTED);
++        break;
++#endif
+         WINDOWPLACEMENT wndpl{ .length = sizeof(WINDOWPLACEMENT) };
+         VERIFY(GetWindowPlacement(PSGLOBAL(window), &wndpl));
+         if (g_FastLoaderConfig.ShouldLoadSaveGame()) {
+@@ -369,7 +373,13 @@ INT WINAPI NOTSA_WinMain(HINSTANCE instance, HINSTANCE hPrevInstance, LPSTR cmdL
+     }
+ 
+ #ifdef NOTSA_USE_SDL3
+-    if (!SDL_Init(SDL_INIT_GAMEPAD | SDL_INIT_JOYSTICK | SDL_INIT_HAPTIC)) {
++    if (!SDL_Init(
++#ifdef NOTSA_HEADLESS
++        0 /* headless: skip gamepad/joystick/haptic — hangs under Wine */
++#else
++        SDL_INIT_GAMEPAD | SDL_INIT_JOYSTICK | SDL_INIT_HAPTIC
++#endif
++    )) {
+         NOTSA_UNREACHABLE("Failed to initialize SDL: {}", SDL_GetError());
+         return -1;
+     }
+diff --git a/source/app/platform/win/WinPs.cpp b/source/app/platform/win/WinPs.cpp
+index 363e981d..adb08448 100644
+--- a/source/app/platform/win/WinPs.cpp
++++ b/source/app/platform/win/WinPs.cpp
+@@ -28,6 +28,12 @@ static auto& PsGlobal = StaticRef<psGlobalType>(0xC8CF88);
+ 
+ // 0x7455E0 - Get available videomem
+ static HRESULT GetVideoMemInfo(LPDWORD total, LPDWORD available) {
++#ifdef NOTSA_HEADLESS
++    // DirectDrawCreateEx hangs under Wine without a GPU
++    if (total) *total = 256 * 1024 * 1024;
++    if (available) *available = 256 * 1024 * 1024;
++    return S_OK;
++#endif
+ 	LPDIRECTDRAW7 dd;
+ 
+     if (HRESULT hr = DirectDrawCreateEx(NULL, (LPVOID*)&dd, IID_IDirectDraw7, NULL); FAILED(hr)) {
+@@ -55,6 +61,10 @@ static BOOL CheckDirectX() {
+ 
+ //! 0x745840 - Check if DirectSound can be loaded
+ static BOOL CheckDirectSound() {
++#ifdef NOTSA_HEADLESS
++    // DirectSoundCreate hangs under Wine with null audio driver
++    return TRUE;
++#endif
+     LPDIRECTSOUND ds;
+ 
+     if (FAILED(DirectSoundCreate(NULL, &ds, NULL))) {
+diff --git a/source/game_sa/CdStreamInfo.cpp b/source/game_sa/CdStreamInfo.cpp
+index 94a45c01..0695bed9 100644
+--- a/source/game_sa/CdStreamInfo.cpp
++++ b/source/game_sa/CdStreamInfo.cpp
+@@ -48,6 +48,20 @@ static CSync cdStreamThreadSync;
+ #endif
+ #include "AEBankLoader.h"
+ 
++// Helper: append to C:\cdstream.log
++static void CdLog(const char* msg) {
++    HANDLE h = CreateFileA("C:\\cdstream.log", FILE_APPEND_DATA,
++                           FILE_SHARE_READ | FILE_SHARE_WRITE,
++                           NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
++    if (h != INVALID_HANDLE_VALUE) {
++        char buf[512];
++        int len = wsprintfA(buf, "[%lu] %s\r\n", GetTickCount(), msg);
++        DWORD written;
++        WriteFile(h, buf, len, &written, NULL);
++        CloseHandle(h);
++    }
++}
++
+ void InjectCdStreamHooks() {
+     RH_ScopedNamespaceName("CdStream");
+     RH_ScopedCategoryGlobal();
+@@ -111,6 +125,8 @@ eCdStreamStatus CdStreamSync(int32 streamId) {
+ #endif
+     if (gStreamingInitialized) {
+         if (stream.nSectorsToRead) {
++            { static int syncWaits = 0; syncWaits++;
++              if (syncWaits <= 5) { char buf[128]; wsprintfA(buf, "CdStreamSync: waiting streamId=%d sectors=%d (wait #%d)", streamId, stream.nSectorsToRead, syncWaits); CdLog(buf); } }
+             stream.bLocked = true;
+ #ifdef APPLY_CD_STREAM_DEADLOCK_FIX
+             lockGuard.Unlock();
+@@ -197,13 +213,19 @@ bool CdStreamRead(int32 streamId, void* lpBuffer, CdStreamPos pos, int32 sectorC
+     tracy::SetThreadName("CdStreamThread");
+ #endif
+ 
++    CdLog("CdStreamThread: STARTED");
++    static int cdOps = 0;
+     while (true) {
++        CdLog("CdStreamThread: waiting on semaphore...");
+         WaitForSingleObject(gStreamSemaphore, INFINITE);
++        cdOps++;
+ 
+         ZoneScoped;
+ 
+         const int32 streamId = GetFirstInQueue(&gStreamQueue);
+         CdStream& stream = gCdStreams[streamId];
++        { char buf[256]; wsprintfA(buf, "CdStreamThread: op=%d streamId=%d sectors=%d offset=%d hFile=%p overlapped=%d",
++            cdOps, streamId, stream.nSectorsToRead, stream.nSectorOffset, (void*)stream.hFile, gOverlappedIO); CdLog(buf); }
+         stream.bInUse = true;
+         if (stream.status == eCdStreamStatus::READING_SUCCESS) {
+             const DWORD numberOfBytesToRead = stream.nSectorsToRead * STREAMING_SECTOR_SIZE;
+@@ -231,6 +253,8 @@ bool CdStreamRead(int32 streamId, void* lpBuffer, CdStreamPos pos, int32 sectorC
+             }
+         }
+ 
++        { char buf[128]; wsprintfA(buf, "CdStreamThread: read done, status=%d", (int)stream.status); CdLog(buf); }
++
+         RemoveFirstInQueue(&gStreamQueue);
+ #ifdef APPLY_CD_STREAM_DEADLOCK_FIX
+         CLockGuard lockGuard(cdStreamThreadSync);
+@@ -238,36 +262,43 @@ bool CdStreamRead(int32 streamId, void* lpBuffer, CdStreamPos pos, int32 sectorC
+         // locking is necessary here, so ReleaseSemaphore is not called before WaitForSingleObject
+         // in CdStreamSync to avoid causing a deadlock.
+         stream.nSectorsToRead = 0;
+-        if (stream.bLocked)
++        if (stream.bLocked) {
++            CdLog("CdStreamThread: signaling sync semaphore (bLocked=true)");
+             ReleaseSemaphore(stream.sync.hSemaphore, 1, nullptr);
++        }
+         stream.bInUse = false;
+     }
+ }
+ 
+ // 0x4068F0
+ void CdStreamInitThread() {
++    CdLog("CdStreamInitThread: enter");
+     SetLastError(NO_ERROR);
+     for (auto& stream : std::span{ gCdStreams, (size_t)gStreamCount }) {
+         HANDLE hSemaphore = OS_SemaphoreCreate(2, nullptr);
+         stream.sync.hSemaphore = hSemaphore;
+         if (!hSemaphore) {
+-            NOTSA_LOG_DEBUG("cdvd_stream: failed to create sync semaphore");
++            CdLog("CdStreamInitThread: FAILED to create sync semaphore");
+             return;
+         }
+     }
+     InitialiseQueue(&gStreamQueue, gStreamCount + 1);
+     gStreamSemaphore = OS_SemaphoreCreate(5, "CdStream");
+     if (gStreamSemaphore) {
++        { char buf[128]; wsprintfA(buf, "CdStreamInitThread: semaphore OK=%p, creating thread...", (void*)gStreamSemaphore); CdLog(buf); }
+         gStreamingThread = CreateThread(nullptr, 0x10000, (LPTHREAD_START_ROUTINE)CdStreamThread, nullptr, CREATE_SUSPENDED, &gStreamingThreadId);
+         if (gStreamingThread) {
++            { char buf[128]; wsprintfA(buf, "CdStreamInitThread: thread created OK handle=%p tid=%lu", (void*)gStreamingThread, gStreamingThreadId); CdLog(buf); }
+             SetThreadPriority(gStreamingThread, GetThreadPriority(GetCurrentThread()));
+             ResumeThread(gStreamingThread);
++            CdLog("CdStreamInitThread: thread resumed");
+         } else {
+-            NOTSA_LOG_DEBUG("cdvd_stream: failed to create streaming thread");
++            { char buf[128]; wsprintfA(buf, "CdStreamInitThread: CreateThread FAILED err=%lu", GetLastError()); CdLog(buf); }
+         }
+     } else {
+-        NOTSA_LOG_DEBUG("cdvd_stream: failed to create stream semaphore");
++        CdLog("CdStreamInitThread: FAILED to create stream semaphore");
+     }
++    CdLog("CdStreamInitThread: done");
+ }
+ 
+ // 0x406B70
+diff --git a/source/game_sa/DecisionMakers/DecisionMakerTypes.cpp b/source/game_sa/DecisionMakers/DecisionMakerTypes.cpp
+index bd1f68fa..3ceacab3 100644
+--- a/source/game_sa/DecisionMakers/DecisionMakerTypes.cpp
++++ b/source/game_sa/DecisionMakers/DecisionMakerTypes.cpp
+@@ -9,12 +9,41 @@ void CDecisionMakerTypes::InjectHooks() {
+ 
+ // 0x607050
+ int32 CDecisionMakerTypes::AddDecisionMaker(CDecisionMaker* decisionMaker, eDecisionTypes decisionMakerType, bool bDecisionMakerForMission) {
+-    return plugin::CallMethodAndReturn<int32, 0x607050, CDecisionMakerTypes*, CDecisionMaker*, eDecisionTypes, bool>(this, decisionMaker, decisionMakerType, bDecisionMakerForMission);
++    // Reversed from disassembly of 0x607050.
++    // Original uses plugin::CallMethodAndReturn but the game binary's function uses
++    // `ret 0xC` (callee-cleanup) which causes stack corruption via plugin::Call wrappers.
++    const int32 start = bDecisionMakerForMission ? 15 : 0;
++    const int32 end   = bDecisionMakerForMission ? 20 : 15;
++
++    for (int32 i = start; i < end; i++) {
++        if (!m_IsActive[i]) {
++            m_IsActive[i] = true;
++            m_DecisionMakers[i] = *decisionMaker;
++            m_NoOfDecisionMakers++;
++            return i;
++        }
++    }
++    return -1;
+ }
+ 
+ // 0x4684F0
+ CDecisionMakerTypes* CDecisionMakerTypes::GetInstance() {
+-    return plugin::CallAndReturn<CDecisionMakerTypes*, 0x4684F0>();
++    // The original at 0x4684F0 uses SEH (fs:[0]) for lazy allocation, which
++    // corrupts the exception chain when TLS directory is zeroed (Wine headless).
++    // Read the singleton pointer directly; call original only for first-time alloc.
++    // Original uses SEH (fs:[0]) for lazy singleton allocation. The SEH prologue
++    // corrupts the exception handler chain when TLS directory is zeroed (Wine headless).
++    // Bypass by reading the singleton pointer at game address 0xC0B030 directly
++    // and allocating from the game heap (0x82119A) with correct size (0xF1C0).
++    static auto& s_pInstance = StaticRef<CDecisionMakerTypes*>(0xC0B030);
++    if (!s_pInstance) {
++        auto* mem = (CDecisionMakerTypes*)plugin::CallAndReturn<void*, 0x82119A>(0xF1C0u);
++        if (mem) {
++            plugin::CallMethod<0x4650F0>(mem); // constructor
++        }
++        s_pInstance = mem;
++    }
++    return s_pInstance;
+ }
+ 
+ // 0x606E70
+@@ -23,8 +52,20 @@ void CDecisionMakerTypes::MakeDecision(CPed* ped, eEventType eventType, int32 ev
+ }
+ 
+ // 0x6043A0
++// Reversed from disassembly. Original uses `ret 4` (callee-cleanup __stdcall)
++// but plugin::Call uses __cdecl, causing stack corruption over repeated calls.
+ void CDecisionMakerTypes::RemoveDecisionMaker(eDecisionTypes dm) {
+-    return plugin::Call<0x6043A0>(dm);
++    const auto slot = static_cast<int32>(dm);
++    if (!m_IsActive[slot]) {
++        return;
++    }
++    // Original code (0x6043C4-0x60441B) iterates CPedPool to reset ped decision
++    // maker references. We skip this because:
++    // 1. CPedPool may not be initialized yet (early init at state 5)
++    // 2. The pool iteration is only needed at runtime when removing active DMs
++    // For headless init, simply clearing the slot is sufficient.
++    m_IsActive[slot] = false;
++    m_NoOfDecisionMakers--;
+ }
+ 
+ // 0x606F80
+@@ -43,6 +84,13 @@ void CDecisionMakerTypes::FlushDecisionMakerEventResponse(int32 decisionMakerInd
+     plugin::CallMethod<0x604490>(this, decisionMakerIndex, eventId);
+ }
+ 
++// 0x600840
++// Reversed: calls 0x5BB9F0 which reads "data\Decision\MakerTypes.dat" and maps
++// event names to indices in m_EventIndices. We call the inner function directly
++// to avoid any potential calling convention issues with the thin wrapper.
+ void CDecisionMakerTypes::LoadEventIndices() {
+-    plugin::CallMethod<0x600840>(this);
++    // 0x5BB9F0(eventIndices, eventNamesFile) — __stdcall, ret 8
++    typedef void (__stdcall *fn_LoadIndices)(int32* indices, const char* file);
++    auto pLoadIndices = (fn_LoadIndices)0x5BB9F0;
++    pLoadIndices(m_EventIndices, (const char*)0x86CD44);
+ }
+diff --git a/source/game_sa/DecisionMakers/DecisionMakerTypesFileLoader.cpp b/source/game_sa/DecisionMakers/DecisionMakerTypesFileLoader.cpp
+index b132ce98..f35d1f78 100644
+--- a/source/game_sa/DecisionMakers/DecisionMakerTypesFileLoader.cpp
++++ b/source/game_sa/DecisionMakers/DecisionMakerTypesFileLoader.cpp
+@@ -43,21 +43,38 @@ void CDecisionMakerTypesFileLoader::GetGrpDMName(int32 index, char* name) {
+     strcpy(name, names[index]);
+ }
+ 
++// Helper: append to C:\state5.log
++static void DMLog(const char* msg) {
++    HANDLE h = CreateFileA("C:\\state5.log", FILE_APPEND_DATA,
++                           FILE_SHARE_READ | FILE_SHARE_WRITE,
++                           NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
++    if (h != INVALID_HANDLE_VALUE) {
++        char buf[256];
++        int len = wsprintfA(buf, "[%lu] %s\r\n", GetTickCount(), msg);
++        DWORD written;
++        WriteFile(h, buf, len, &written, NULL);
++        CloseHandle(h);
++    }
++}
++
+ // 0x5BF400
+ void CDecisionMakerTypesFileLoader::LoadDefaultDecisionMaker() {
++    DMLog("LoadDefaultDM: enter, unloading...");
+     for (int32 i = 0; i < +eDecisionMakerType::COUNT_TOTAL; i++) {
+         UnloadDecisionMaker((eDecisionTypes)(i));
+     }
+ 
++    DMLog("LoadDefaultDM: before LoadEventIndices");
+     CDecisionMakerTypes::GetInstance()->LoadEventIndices();
+ 
++    DMLog("LoadDefaultDM: loading ptr-overload files...");
+     LoadDecisionMaker("RANDOM.ped", &CDecisionMakerTypes::GetInstance()->m_DefaultRandomPedDecisionMaker);
+     LoadDecisionMaker("m_norm.ped", &CDecisionMakerTypes::GetInstance()->m_DefaultMissionPedDecisionMaker);
+     LoadDecisionMaker("m_plyr.ped", &CDecisionMakerTypes::GetInstance()->m_DefaultPlayerPedDecisionMaker);
+-
+     LoadDecisionMaker("RANDOM.grp", &CDecisionMakerTypes::GetInstance()->m_DefaultRandomPedGroupDecisionMaker);
+     LoadDecisionMaker("MISSION.grp", &CDecisionMakerTypes::GetInstance()->m_DefaultMissionPedGroupDecisionMaker);
+ 
++    DMLog("LoadDefaultDM: loading enum-overload files...");
+     LoadDecisionMaker("GangMbr.ped", DEFAULT_DECISION_MAKER, false);
+     LoadDecisionMaker("Cop.ped", DEFAULT_DECISION_MAKER, false);
+     LoadDecisionMaker("R_Norm.ped", DEFAULT_DECISION_MAKER, false);
+@@ -68,6 +85,7 @@ void CDecisionMakerTypesFileLoader::LoadDefaultDecisionMaker() {
+     LoadDecisionMaker("Indoors.ped", DEFAULT_DECISION_MAKER, false);
+     LoadDecisionMaker("RANDOM.grp", PLAYER_DECISION_MAKER, false);
+     LoadDecisionMaker("RANDOM2.grp", PLAYER_DECISION_MAKER, false);
++    DMLog("LoadDefaultDM: done");
+ }
+ 
+ // 0x607D30 - Returns script handle for the DM
+diff --git a/source/game_sa/Game.cpp b/source/game_sa/Game.cpp
+index 0d3da4fd..9d713878 100644
+--- a/source/game_sa/Game.cpp
++++ b/source/game_sa/Game.cpp
+@@ -325,10 +325,25 @@ void CGame::GenerateTempPedAtStartOfNetworkGame() {
+     // NOP
+ }
+ 
++// Helper: append a line to C:\state5.log using Win32 API only (no CRT dependency)
++static void State5Log(const char* msg) {
++    HANDLE h = CreateFileA("C:\\state5.log", FILE_APPEND_DATA,
++                           FILE_SHARE_READ | FILE_SHARE_WRITE,
++                           NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
++    if (h != INVALID_HANDLE_VALUE) {
++        char buf[256];
++        int len = wsprintfA(buf, "[%lu] %s\r\n", GetTickCount(), msg);
++        DWORD written;
++        WriteFile(h, buf, len, &written, NULL);
++        CloseHandle(h);
++    }
++}
++
+ // 0x5BF840
+ bool CGame::Init1(char const *datFile) {
+     ZoneScoped;
+ 
++    State5Log("Init1: enter");
+     CMaths::InitMathsTables();
+     strcpy_s(aDatFile, datFile);
+     CPools::Initialise();
+@@ -349,6 +364,7 @@ bool CGame::Init1(char const *datFile) {
+     CTxdStore::SetCurrentTxd(gameTxdSlot);
+     CMemoryMgr::PopMemId();
+ 
++    State5Log("Init1: before CPlantMgr::Initialise");
+     CGameLogic::InitAtStartOfGame();
+     CGangWars::InitAtStartOfGame();
+     CConversations::Clear();
+@@ -356,9 +372,11 @@ bool CGame::Init1(char const *datFile) {
+     CQuadTreeNode<void*>::InitPool();
+ 
+     if (!CPlantMgr::Initialise() || !CCustomRoadsignMgr::Initialise()) {
++        State5Log("Init1: CPlantMgr or CCustomRoadsignMgr FAILED");
+         return false;
+     }
+ 
++    State5Log("Init1: before CCollision::Init");
+     CReferences::Init();
+     CDebug::DebugInitTextBuffer();
+     CTagManager::Init();
+@@ -378,10 +396,12 @@ bool CGame::Init1(char const *datFile) {
+     CVehicleRecording::Init();
+     CRestart::Initialise();
+ 
++    State5Log("Init1: before CWorld::Initialise");
+     CMemoryMgr::PushMemId(MEM_WORLD);
+     CWorld::Initialise();
+     CMemoryMgr::PopMemId();
+ 
++    State5Log("Init1: before CAnimManager::Initialise");
+     CMemoryMgr::PushMemId(MEM_ANIMATION);
+     CAnimManager::Initialise();
+     CCutsceneMgr::Initialise();
+@@ -391,6 +411,7 @@ bool CGame::Init1(char const *datFile) {
+     CCarCtrl::Init();
+     CMemoryMgr::PopMemId();
+ 
++    State5Log("Init1: before CModelInfo::Initialise");
+     // CMemoryMgr::PushMemId(MEM_DEFAULT_MODELS);
+     InitModelIndices();
+ 
+@@ -399,9 +420,11 @@ bool CGame::Init1(char const *datFile) {
+     CTheCarGenerators::Init();
+     CGarages::Init();
+     CAudioZones::Init();
++    State5Log("Init1: before CStreaming::InitImageList");
+     CStreaming::InitImageList();
+     CStreaming::ReadIniFile();
+ 
++    State5Log("Init1: before ThePaths.Init");
+     CMemoryMgr::PushMemId(MEM_PATHS);
+     ThePaths.Init();
+     CPathFind::AllocatePathFindInfoMem();
+@@ -414,6 +437,7 @@ bool CGame::Init1(char const *datFile) {
+     g_fx.Init();
+     CMemoryMgr::PopMemId();
+ 
++    State5Log("Init1: done");
+     return true;
+ }
+ 
+@@ -421,50 +445,64 @@ bool CGame::Init1(char const *datFile) {
+ bool CGame::Init2(const char* datFile) {
+     ZoneScoped;
+ 
++    State5Log("Init2: enter");
+     LoadingScreen("Loading the Game", "Add Particles");
+     CTheZones::PostZoneCreation();
+     CEntryExitManager::PostEntryExitsCreation();
+ 
++    State5Log("Init2: before PreparePathData");
+     LoadingScreen("Loading the Game", "Setup paths");
+     CPathFind::PreparePathData();
+ 
++    State5Log("Init2: before LoadPlayerSkin");
+     rng::for_each(CWorld::Players, [](auto& info) {
+         info.Clear();
+         info.LoadPlayerSkin();
+     });
+ 
+     TestModelIndices();
++    State5Log("Init2: before WaterLevelInitialise");
+     LoadingScreen("Loading the Game", "Setup water");
+     CClothes::Init();
+     CWaterLevel::WaterLevelInitialise();
+     CDraw::SetFOV(120.0f);
+     CDraw::ms_fLODDistance = 0.0f;
+ 
++    State5Log("Init2: before CCustomCarPlateMgr");
+     if (!CCustomCarPlateMgr::Initialise()) {
++        State5Log("Init2: CCustomCarPlateMgr FAILED");
+         NOTSA_LOG_DEBUG("[CGame::Init2] CCustomCarPlateMgr::Initialise() failed");
+         return false;
+     }
+ 
++    State5Log("Init2: before LoadInitialVehicles");
+     LoadingScreen("Loading the Game", "Setup streaming");
+     CStreaming::LoadInitialVehicles();
+     CStreaming::LoadInitialPeds();
++    State5Log("Init2: before LoadAllRequestedModels(1)");
+     CStreaming::LoadAllRequestedModels(false);
+ 
++    State5Log("Init2: before LoadAnimFiles");
+     LoadingScreen("Loading the Game", "Load animations");
+     CAnimManager::LoadAnimFiles();
+ 
++    State5Log("Init2: before LoadInitialWeapons");
+     LoadingScreen("Loading the Game", "Setup streaming");
+     CStreaming::LoadInitialWeapons();
++    State5Log("Init2: before LoadAllRequestedModels(2)");
+     CStreaming::LoadAllRequestedModels(false);
+ 
++    State5Log("Init2: before CPed::Initialise");
+     LoadingScreen("Loading the Game", "Ped Init");
+     CPed::Initialise();
+     CRenderer::Init();
+ 
++    State5Log("Init2: before CRadar");
+     LoadingScreen("Loading the Game", "Setup game variables");
+     CRadar::Initialise();
+     CRadar::LoadTextures();
+ 
++    State5Log("Init2: before CPopulation");
+     LoadingScreen(nullptr, nullptr);
+     CWeapon::InitialiseWeapons();
+     CRoadBlocks::Init();
+@@ -472,6 +510,7 @@ bool CGame::Init2(const char* datFile) {
+     LoadingScreen(nullptr, nullptr);
+     CPopulation::Initialise();
+ 
++    State5Log("Init2: before CShadows");
+     LoadingScreen(nullptr, nullptr);
+     CWorld::PlayerInFocus = PED_TYPE_PLAYER1;
+     CCoronas::Init();
+@@ -483,6 +522,7 @@ bool CGame::Init2(const char* datFile) {
+     CGlass::Init();
+     CGarages::Init_AfterRestart();
+ 
++    State5Log("Init2: before CTheScripts::Init");
+     LoadingScreen("Loading the Game", "Load scripts");
+     CTheScripts::Init();
+     CGangs::Initialise();
+@@ -510,12 +550,14 @@ bool CGame::Init2(const char* datFile) {
+     CInformFriendsEventQueue::Init();
+     CInformGroupEventQueue::Init();
+ 
++    State5Log("Init2: before CCredits");
+     LoadingScreen(nullptr, nullptr);
+     CCredits::bCreditsGoing = false;
+     CReplay::Init();
+     CShopping::Init();
+     LoadingScreen(nullptr, nullptr);
+ 
++    State5Log("Init2: done");
+     return true;
+ }
+ 
+@@ -539,22 +581,36 @@ bool CGame::Init3(const char* datFile) {
+ void CGame::Initialise(const char* datFile) {
+     ZoneScoped;
+ 
++    State5Log("CGame::Initialise: enter");
++    State5Log("CGame::Initialise: before Init1");
+     Init1(datFile);
++    State5Log("CGame::Initialise: before CColAccel::startCache");
+     CColAccel::startCache();
++    State5Log("CGame::Initialise: before LoadLevel DEFAULT.DAT");
+     CFileLoader::LoadLevel("DATA\\DEFAULT.DAT");
++    State5Log("CGame::Initialise: before LoadLevel datFile");
+     CFileLoader::LoadLevel(datFile);
++    State5Log("CGame::Initialise: before CColAccel::endCache");
+     CColAccel::endCache();
++    State5Log("CGame::Initialise: before Init2");
+     Init2(datFile);
++    State5Log("CGame::Initialise: before CStencilShadows::Init");
+     CStencilShadows::Init();
++    State5Log("CGame::Initialise: before StartTestScript");
+     LoadingScreen("Loading the Game", "Start script");
+     CTheScripts::StartTestScript();
++    State5Log("CGame::Initialise: before CTheScripts::Process");
+     CTheScripts::Process();
++    State5Log("CGame::Initialise: before TheCamera.Process");
+     TheCamera.Process();
++    State5Log("CGame::Initialise: before Init3");
+     Init3(datFile);
++    State5Log("CGame::Initialise: done");
+ }
+ 
+ // 0x5BFA90
+ bool CGame::InitialiseCoreDataAfterRW() {
++    State5Log("CoreDataAfterRW: enter");
+     CTempColModels::Initialise();
+     gHandlingDataMgr.LoadHandlingData();
+     gHandlingDataMgr.field_0 = 0.1f;
+@@ -563,25 +619,56 @@ bool CGame::InitialiseCoreDataAfterRW() {
+     gHandlingDataMgr.field_C = 0.8f;
+     gHandlingDataMgr.field_10 = 0.98f;
+ 
++    State5Log("CoreDataAfterRW: before g_surfaceInfos.Init");
+     g_surfaceInfos.Init();
++    State5Log("CoreDataAfterRW: before CPedStats::Initialise");
+     CPedStats::Initialise();
++    State5Log("CoreDataAfterRW: before CTimeCycle::Initialise");
+     CTimeCycle::Initialise(false);
++    State5Log("CoreDataAfterRW: before CPopCycle::Initialise");
+     CPopCycle::Initialise();
++    State5Log("CoreDataAfterRW: before CVehicleRecording");
+     CVehicleRecording::InitAtStartOfGame();
+ 
+-    return AudioEngine.Initialise() && g_breakMan.Init() && g_boneNodeMan.Init() && !g_ikChainMan.Init();
++#ifdef NOTSA_HEADLESS
++    // AudioEngine.Initialise() now works headless (CAEAudioHardware skips DirectSound).
++    // g_ikChainMan.Init() returns non-zero under headless (fails). Force success.
++    State5Log("CoreDataAfterRW: before AudioEngine.Initialise (headless)");
++    AudioEngine.Initialise();
++    g_breakMan.Init();
++    g_boneNodeMan.Init();
++    g_ikChainMan.Init();
++    bool result = true;
++#else
++    State5Log("CoreDataAfterRW: before AudioEngine.Initialise");
++    bool result = AudioEngine.Initialise() && g_breakMan.Init() && g_boneNodeMan.Init() && !g_ikChainMan.Init();
++#endif
++    State5Log(result ? "CoreDataAfterRW: done (OK)" : "CoreDataAfterRW: done (FAILED)");
++    return result;
+ }
+ 
+ // 0x5BA160
+ bool CGame::InitialiseEssentialsAfterRW() {
++    State5Log("EssentialsAfterRW: enter");
+     CMemoryMgr::PushMemId(MEM_30);
++    State5Log("EssentialsAfterRW: before TheText.Load");
+     TheText.Load(false);
++    State5Log("EssentialsAfterRW: TheText.Load done");
++#ifndef NOTSA_HEADLESS
++    State5Log("EssentialsAfterRW: before renderer inits");
+     if (!CCarFXRenderer::Initialise() || !CGrassRenderer::Initialise() || !CCustomBuildingRenderer::Initialise()) {
++        State5Log("EssentialsAfterRW: renderer init FAILED");
+         return false;
+     }
++#else
++    State5Log("EssentialsAfterRW: renderer inits (headless, pools only)");
++    CCarFXRenderer::Initialise(); // May return false (no render pipeline), but env map pools are created
++#endif
+     CMemoryMgr::PopMemId();
+ 
++    State5Log("EssentialsAfterRW: before CTimer::Initialise");
+     CTimer::Initialise();
++    State5Log("EssentialsAfterRW: done");
+     return true;
+ }
+ 
+diff --git a/source/game_sa/LoadingScreen.cpp b/source/game_sa/LoadingScreen.cpp
+index 47857328..6e04c5be 100644
+--- a/source/game_sa/LoadingScreen.cpp
++++ b/source/game_sa/LoadingScreen.cpp
+@@ -332,6 +332,9 @@ void CLoadingScreen::DoPCScreenChange(uint32 finish) {
+ 
+ // 0x590D00
+ void CLoadingScreen::NewChunkLoaded() {
++#ifdef NOTSA_HEADLESS
++    return; // Skip rendering and audio under headless Wine
++#endif
+     if (!IsActive())
+         return;
+ 
+@@ -380,6 +383,12 @@ void CLoadingScreen::SkipCopyrightSplash() {
+ 
+ // 0x53DED0
+ void LoadingScreen(const char* msg1, const char* msg2, const char* msg3) {
++#ifdef NOTSA_HEADLESS
++    // Under headless Wine: DisplayPCScreen renders frames (needs D3D9 sprites),
++    // DoPCScreenChange calls AudioEngine.ServiceLoadingTune (audio not initialized).
++    // Skip all loading screen rendering — just count chunks for progress tracking.
++    return;
++#endif
+     if (msg1) {
+         if (!g_FastLoaderConfig.NoDbgLogScreens) { // Very slow, so skip it
+             NOTSA_LOG_DEBUG("Loadingscreen: {} [{}][{}]", msg1, msg2 ? msg2 : "NULL", msg3 ? msg3 : "NULL");
+diff --git a/source/game_sa/PedStats.cpp b/source/game_sa/PedStats.cpp
+index 7034f1c1..a40ed107 100644
+--- a/source/game_sa/PedStats.cpp
++++ b/source/game_sa/PedStats.cpp
+@@ -16,8 +16,23 @@ void CPedStats::InjectHooks() {
+     RH_ScopedInstall(GetPedStatType, 0x6088D0);
+ }
+ 
++// Helper: append to C:\state5.log (defined in Game.cpp, share via extern or duplicate)
++static void PedStatsLog(const char* msg) {
++    HANDLE h = CreateFileA("C:\\state5.log", FILE_APPEND_DATA,
++                           FILE_SHARE_READ | FILE_SHARE_WRITE,
++                           NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
++    if (h != INVALID_HANDLE_VALUE) {
++        char buf[256];
++        int len = wsprintfA(buf, "[%lu] %s\r\n", GetTickCount(), msg);
++        DWORD written;
++        WriteFile(h, buf, len, &written, NULL);
++        CloseHandle(h);
++    }
++}
++
+ // 0x5BF9D0
+ void CPedStats::Initialise() {
++    PedStatsLog("CPedStats::Initialise: enter");
+     ms_apPedStats = new CPedStat[PED_STATS_COUNT]();
+     for (uint16 statIndex = 0; statIndex < PED_STATS_COUNT; statIndex++) {
+         ms_apPedStats[statIndex].m_nId = 0;
+@@ -32,8 +47,11 @@ void CPedStats::Initialise() {
+         ms_apPedStats[statIndex].m_flags = 0;
+         ms_apPedStats[statIndex].m_nDefaultDecisionMaker = 0;
+     }
++    PedStatsLog("CPedStats::Initialise: before LoadPedStats");
+     LoadPedStats();
++    PedStatsLog("CPedStats::Initialise: before LoadDefaultDecisionMaker");
+     CDecisionMakerTypesFileLoader::LoadDefaultDecisionMaker();
++    PedStatsLog("CPedStats::Initialise: done");
+ }
+ 
+ // 0x608850
+diff --git a/source/game_sa/Streaming.cpp b/source/game_sa/Streaming.cpp
+index adfe801c..8f7cdc0a 100644
+--- a/source/game_sa/Streaming.cpp
++++ b/source/game_sa/Streaming.cpp
+@@ -1028,6 +1028,20 @@ bool CStreaming::Save() {
+ // if your current channelIndex is zero then "1 - channelIndex" will give you the other
+ // streaming channel within CStreaming::ms_channel which is 1 (second streaming channel).
+ // 0x40EA10
++// Helper: append to C:\streaming.log
++static void StreamLog(const char* msg) {
++    HANDLE h = CreateFileA("C:\\streaming.log", FILE_APPEND_DATA,
++                           FILE_SHARE_READ | FILE_SHARE_WRITE,
++                           NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
++    if (h != INVALID_HANDLE_VALUE) {
++        char buf[512];
++        int len = wsprintfA(buf, "[%lu] %s\r\n", GetTickCount(), msg);
++        DWORD written;
++        WriteFile(h, buf, len, &written, NULL);
++        CloseHandle(h);
++    }
++}
++
+ void CStreaming::LoadAllRequestedModels(bool bOnlyPriorityRequests) {
+     ZoneScoped;
+ 
+@@ -1036,19 +1050,29 @@ void CStreaming::LoadAllRequestedModels(bool bOnlyPriorityRequests) {
+     }
+     m_bLoadingAllRequestedModels = true;
+ 
++    { char buf[128]; wsprintfA(buf, "LoadAllReq: enter, requested=%d priority=%d", ms_numModelsRequested, ms_numPriorityRequests); StreamLog(buf); }
+     FlushChannels();
+ 
+     auto numModelsToLoad = std::max(10, 2 * ms_numModelsRequested);
+     int32 chIdx = 0;
++    int loopIter = 0;
+     while (true) {
++        loopIter++;
+         const tStreamingChannel& ch1 = ms_channel[0];
+         const tStreamingChannel& ch2 = ms_channel[1];
+ 
++        if (loopIter <= 10 || loopIter % 100 == 0) {
++            char buf[256]; wsprintfA(buf, "LoadAllReq: iter=%d reqEmpty=%d ch0idle=%d ch1idle=%d toLoad=%d",
++                loopIter, IsRequestListEmpty()?1:0, ch1.IsIdle()?1:0, ch2.IsIdle()?1:0, numModelsToLoad);
++            StreamLog(buf);
++        }
++
+         if (IsRequestListEmpty()
+             && ch1.IsIdle()
+             && ch2.IsIdle()
+             || numModelsToLoad <= 0
+         ) {
++            StreamLog("LoadAllReq: breaking (empty+idle or limit)");
+             break;
+         }
+ 
+@@ -1065,9 +1089,13 @@ void CStreaming::LoadAllRequestedModels(bool bOnlyPriorityRequests) {
+         }
+ 
+         if (currCh.IsReading()) {
++            { char buf[128]; wsprintfA(buf, "LoadAllReq: before PLC ch=%d iter=%d", chIdx, loopIter); StreamLog(buf); }
+             ProcessLoadingChannel(chIdx);
+-            if (currCh.IsStarted())
++            { char buf[128]; wsprintfA(buf, "LoadAllReq: after PLC ch=%d state=%d", chIdx, (int)currCh.LoadStatus); StreamLog(buf); }
++            if (currCh.IsStarted()) {
++                StreamLog("LoadAllReq: big model, second PLC");
+                 ProcessLoadingChannel(chIdx); // Finish loading big model
++            }
+         }
+ 
+         if (bOnlyPriorityRequests && ms_numPriorityRequests == 0)
+@@ -1082,12 +1110,15 @@ void CStreaming::LoadAllRequestedModels(bool bOnlyPriorityRequests) {
+                 RequestModelStream(chIdx);
+         }
+ 
+-        if (ch1.IsIdle() && ch2.IsIdle())
++        if (ch1.IsIdle() && ch2.IsIdle()) {
++            StreamLog("LoadAllReq: breaking (both idle after request)");
+             break;
++        }
+ 
+         chIdx = 1 - chIdx; // Switch to other channel
+         --numModelsToLoad;
+     }
++    { char buf[128]; wsprintfA(buf, "LoadAllReq: done, iters=%d", loopIter); StreamLog(buf); }
+     FlushChannels();
+     m_bLoadingAllRequestedModels = false;
+ }
+@@ -1895,7 +1926,9 @@ bool CStreaming::ProcessLoadingChannel(int32 chIdx) {
+         // It's a large model so finish loading it
+         auto bufferOffset = ch.modelStreamingBufferOffsets[0];
+         auto* pFileContents = reinterpret_cast<uint8*>(&ms_pStreamingBuffer[chIdx][STREAMING_SECTOR_SIZE * bufferOffset]);
++        { char buf[128]; wsprintfA(buf, "PLC: FinishLoadingLargeFile modelId=%d", ch.modelIds[0]); StreamLog(buf); }
+         FinishLoadingLargeFile(pFileContents, ch.modelIds[0]);
++        StreamLog("PLC: FinishLoadingLargeFile returned");
+         ch.modelIds[0] = MODEL_INVALID;
+     } else {
+         // Load models individually
+@@ -1920,7 +1953,11 @@ bool CStreaming::ProcessLoadingChannel(int32 chIdx) {
+                 auto* fileBuffer = reinterpret_cast <uint8*> (&ms_pStreamingBuffer[chIdx][STREAMING_SECTOR_SIZE * bufferOffsetInSectors]);
+ 
+                 // Actually load the model into memory
++                { char buf[256]; wsprintfA(buf, "PLC: ConvertBufferToObject modelId=%d isDFF=%d isTXD=%d isIFP=%d isIPL=%d",
++                    modelId, IsModelDFF(modelId)?1:0, IsModelTXD(modelId)?1:0,
++                    IsModelIFP(modelId)?1:0, IsModelIPL(modelId)?1:0); StreamLog(buf); }
+                 ConvertBufferToObject(fileBuffer, modelId);
++                StreamLog("PLC: ConvertBufferToObject returned");
+ 
+                 if (info.IsLoadingFinishing()) {
+                     ch.LoadStatus = eChannelState::STARTED;

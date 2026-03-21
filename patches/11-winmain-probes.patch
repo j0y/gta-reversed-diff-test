@@ -1,0 +1,64 @@
+diff --git a/source/app/platform/win/WinMain.cpp b/source/app/platform/win/WinMain.cpp
+index a995d8e0..41679ed5 100644
+--- a/source/app/platform/win/WinMain.cpp
++++ b/source/app/platform/win/WinMain.cpp
+@@ -130,6 +130,7 @@ bool IsForegroundApp() {
+ 
+ // Code from winmain, 0x748DCF
+ bool ProcessGameLogic(INT nCmdShow) {
++    { static int _pgc=0; if(_pgc<50||_pgc%1000==0){char _b[128];wsprintfA(_b,"PGL call=%d state=%d quit=%d loading=%d\r\n",_pgc,gGameState,RsGlobal.quit?1:0,FrontEndMenuManager.m_bStartGameLoading?1:0);HANDLE _h=CreateFileA("C:\\pgl.log",FILE_APPEND_DATA,3,0,4,0x80,0);if(_h!=(HANDLE)-1){DWORD _w;WriteFile(_h,_b,lstrlenA(_b),&_w,0);CloseHandle(_h);}} _pgc++; }
+     if (RsGlobal.quit || FrontEndMenuManager.m_bStartGameLoading) {
+         return false;
+     }
+@@ -324,6 +325,7 @@ void MainLoop(INT nCmdShow) {
+     bool isNewGameFirstTime = true;
+     while (true) {
+         RwInitialized = true;
++        { HANDLE _h=CreateFileA("C:\\mainloop.log",FILE_APPEND_DATA,3,0,4,0x80,0); if(_h!=(HANDLE)-1){char _b[64];wsprintfA(_b,"MainLoop entered, RwInitialized set\r\n");DWORD _w;WriteFile(_h,_b,39,&_w,0);CloseHandle(_h);} }
+ 
+         // Useless, and annoying
+         //RwV2d pos{ SCREEN_WIDTH / 2.0f, SCREEN_HEIGHT / 2.0f };
+@@ -372,16 +374,19 @@ void MainLoop(INT nCmdShow) {
+ 
+ // 0x748710
+ INT WINAPI NOTSA_WinMain(HINSTANCE instance, HINSTANCE hPrevInstance, LPSTR cmdLine, INT nCmdShow) {
++    { FILE* _wm = fopen("C:\\winmain_progress.log", "w"); if(_wm){fprintf(_wm,"[%lu] NOTSA_WinMain entered\n",GetTickCount());fclose(_wm);} }
+     SystemParametersInfo(SPI_SETFOREGROUNDLOCKTIMEOUT, 0u, nullptr, 2);
+     if (IsAlreadyRunning()) {
+         return false;
+     }
+ 
++    { FILE* _wm = fopen("C:\\winmain_progress.log", "a"); if(_wm){fprintf(_wm,"[%lu] Before rsINITIALIZE\n",GetTickCount());fclose(_wm);} }
+     if (rsEVENTERROR == RsEventHandler(rsINITIALIZE, nullptr)) {
+         return false;
+     }
+ 
+ #ifdef NOTSA_USE_SDL3
++    { FILE* _wm = fopen("C:\\winmain_progress.log", "a"); if(_wm){fprintf(_wm,"[%lu] Before SDL_Init\n",GetTickCount());fclose(_wm);} }
+     if (!SDL_Init(
+ #ifdef NOTSA_HEADLESS
+         0 /* headless: skip gamepad/joystick/haptic — hangs under Wine */
+@@ -412,6 +417,7 @@ INT WINAPI NOTSA_WinMain(HINSTANCE instance, HINSTANCE hPrevInstance, LPSTR cmdL
+     __wargv = nullptr;
+ 
+ #ifdef NOTSA_USE_SDL3
++    { FILE* _wm = fopen("C:\\winmain_progress.log", "a"); if(_wm){fprintf(_wm,"[%lu] Before SDL_CreateWindow\n",GetTickCount());fclose(_wm);} }
+     SDL_Window* sdlWnd = SDL_CreateWindow(
+         APP_CLASS,
+         APP_DEFAULT_WIDTH, APP_DEFAULT_HEIGHT,
+@@ -435,6 +441,7 @@ INT WINAPI NOTSA_WinMain(HINSTANCE instance, HINSTANCE hPrevInstance, LPSTR cmdL
+     ControlsManager.ReinitControls();
+ 
+     // 0x748847
++    { FILE* _wm = fopen("C:\\winmain_progress.log", "a"); if(_wm){fprintf(_wm,"[%lu] Before rsRWINITIALIZE, window=%p\n",GetTickCount(),(void*)PSGLOBAL(window));fclose(_wm);} }
+     if (RsEventHandler(rsRWINITIALIZE, PSGLOBAL(window)) == rsEVENTERROR) {
+         DestroyWindow(PSGLOBAL(window));
+         RsEventHandler(rsTERMINATE, nullptr);
+@@ -486,6 +493,7 @@ INT WINAPI NOTSA_WinMain(HINSTANCE instance, HINSTANCE hPrevInstance, LPSTR cmdL
+     SetErrorMode(SEM_FAILCRITICALERRORS);
+ 
+     // 0x7489FB
++    { HANDLE _h=CreateFileA("C:\\mainloop.log",FILE_APPEND_DATA,3,0,4,0x80,0); if(_h!=(HANDLE)-1){const char*_s="MainLoop about to be called\r\n";DWORD _w;WriteFile(_h,_s,29,&_w,0);CloseHandle(_h);} }
+     MainLoop(nCmdShow);
+ 
+     // if game is loaded, shut it down

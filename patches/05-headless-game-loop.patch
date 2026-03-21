@@ -1,0 +1,71 @@
+--- a/source/app/app_game.cpp	2026-03-18 14:13:02.414068596 +0100
++++ b/source/app/app_game.cpp	2026-03-18 14:13:27.071006456 +0100
+@@ -292,6 +292,38 @@
+ void Idle(void* param) {
+     ZoneScoped;
+ 
++#ifdef NOTSA_HEADLESS
++    // Headless: deterministic fixed timestep — no wall-clock dependency.
++    // Replaces CTimer::Update() to ensure identical state across runs.
++    // Skip all rendering (DoRWStuffStartOfFrame, RenderScene, etc.) which hangs
++    // with the null D3D9 device due to uninitialized RW camera/pipeline state.
++    {
++        // Shift time history (same order as CTimer::Update)
++        CTimer::m_snPPPPreviousTimeInMilliseconds = CTimer::m_snPPPreviousTimeInMilliseconds;
++        CTimer::m_snPPPreviousTimeInMilliseconds = CTimer::m_snPPreviousTimeInMilliseconds;
++        CTimer::m_snPPreviousTimeInMilliseconds = CTimer::m_snPreviousTimeInMilliseconds;
++        CTimer::m_snPreviousTimeInMilliseconds = CTimer::m_snTimeInMilliseconds;
++        CTimer::m_snPreviousTimeInMillisecondsNonClipped = CTimer::m_snTimeInMillisecondsNonClipped;
++
++        // Advance time by 20ms per frame (timestep 1.0 = 50fps, matches TIMESTEP_PER_SECOND)
++        CTimer::m_snTimeInMilliseconds += 20;
++        CTimer::m_snTimeInMillisecondsNonClipped += 20;
++        CTimer::m_snTimeInMillisecondsPauseMode += 20;
++
++        // Fixed timestep — 1.0 means exactly one physics step per frame
++        CTimer::ms_fOldTimeStep = CTimer::ms_fTimeStep;
++        CTimer::ms_fTimeStep = 1.0f;
++        CTimer::ms_fTimeStepNonClipped = 1.0f;
++
++        CTimer::m_FrameCounter++;
++        CTimer::m_sbEnableTimeDebug = true;
++        CTimer::game_FPS = 50.0f;
++    }
++    CGame::Process();
++    Render2dStuff(); // Patched to StubRender2dWithSoakTest — runs soak/diff test
++    return;
++#endif
++
+     /* FPS lock. Limits to 26 frames per second.
+     CTimer::GetCurrentTimeInCycles();
+     CTimer::GetCyclesPerMillisecond();
+--- a/source/app/platform/win/WinMain.cpp	2026-03-18 14:13:02.415184284 +0100
++++ b/source/app/platform/win/WinMain.cpp	2026-03-18 14:14:19.568625558 +0100
+@@ -149,6 +149,10 @@
+ #endif
+ 
+     // Game is in background
++#ifdef NOTSA_HEADLESS
++    // Headless: force foreground — no window focus under Wine/Xvfb
++    ForegroundApp = true;
++#endif
+     if (!NO_FOREGROUND_PAUSE && !ForegroundApp) {
+         if (isForeground) {
+             isForeground = false;
+@@ -290,11 +294,16 @@
+         if (!RwInitialized)
+             break;
+ 
++#ifdef NOTSA_HEADLESS
++        // Headless: skip frame limiter — no real rendering, run as fast as possible
++        RsEventHandler(rsIDLE, (void*)true);
++#else
+         auto v9_1 = 1000.0f / (float)RsGlobal.frameLimit;
+         auto v9_2 = (float)CTimer::GetCurrentTimeInCycles() / (float)CTimer::GetCyclesPerMillisecond();
+         if (!FrontEndMenuManager.m_bPrefsFrameLimiter && CReplay::Mode != eReplayMode::MODE_PLAYBACK && !AudioEngine.IsBeatInfoPresent() || v9_1 < v9_2) {
+             RsEventHandler(rsIDLE, (void*)true);
+         }
++#endif
+         break;
+     }
+     }

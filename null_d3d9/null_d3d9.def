@@ -1,0 +1,10 @@
+LIBRARY d3d9
+EXPORTS
+    Direct3DCreate9     @1
+    D3DPERF_BeginEvent  @2
+    D3DPERF_EndEvent    @3
+    D3DPERF_GetStatus   @4
+    D3DPERF_QueryRepeatFrame @5
+    D3DPERF_SetMarker   @6
+    D3DPERF_SetOptions  @7
+    D3DPERF_SetRegion   @8

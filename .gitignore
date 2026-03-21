@@ -1,0 +1,32 @@
+# Build artifacts
+build-output/
+
+# Upstream gta-reversed repo (external dependency, not our code)
+gta-reversed/
+
+# Third-party reference code
+null_d3d9_src/
+
+# Game files (copyrighted, user-supplied)
+gta_sa_compact.exe
+gta_sa.set
+GTASA/
+
+# Wine/runtime artifacts
+/tmp/wine-logs/
+
+# Docker volume caches (managed by Docker, not git)
+conan-cache/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc

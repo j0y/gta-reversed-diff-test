@@ -1,0 +1,100 @@
+diff --git a/source/game_sa/FileLoader.cpp b/source/game_sa/FileLoader.cpp
+index 9224ec42..4b6e6505 100644
+--- a/source/game_sa/FileLoader.cpp
++++ b/source/game_sa/FileLoader.cpp
+@@ -1279,9 +1279,25 @@ void CFileLoader::LoadGarage(const char* line) {
+ }
+ 
+ // 0x5B9030
++// Helper: append to C:\loadlevel.log
++static void LLLog(const char* msg) {
++    HANDLE h = CreateFileA("C:\\loadlevel.log", FILE_APPEND_DATA,
++                           FILE_SHARE_READ | FILE_SHARE_WRITE,
++                           NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
++    if (h != INVALID_HANDLE_VALUE) {
++        char buf[512];
++        int len = wsprintfA(buf, "[%lu] %s\r\n", GetTickCount(), msg);
++        DWORD written;
++        WriteFile(h, buf, len, &written, NULL);
++        CloseHandle(h);
++    }
++}
++
+ void CFileLoader::LoadLevel(const char* levelFileName) {
+     ZoneScoped;
+ 
++    { char buf[256]; wsprintfA(buf, "LoadLevel: enter file=%s", levelFileName); LLLog(buf); }
++
+     auto txd = RwTexDictionaryGetCurrent();
+     if (!txd) {
+         txd = RwTexDictionaryCreate();
+@@ -1291,7 +1307,14 @@ void CFileLoader::LoadLevel(const char* levelFileName) {
+     bool hasLoadedAnyIPLs{};
+ 
+     const auto f = CFileMgr::OpenFile(levelFileName, "r");
++    if (!f) { LLLog("LoadLevel: FAILED to open file!"); return; }
++    LLLog("LoadLevel: file opened OK, reading lines...");
++    int lineCount = 0;
+     for (auto l = LoadLine(f); l; l = LoadLine(f)) {
++        lineCount++;
++        if (lineCount <= 50 || lineCount % 100 == 0) {
++            char buf[512]; wsprintfA(buf, "LoadLevel: line %d: %.60s", lineCount, l); LLLog(buf);
++        }
+         const auto LineBeginsWith = [lsv = std::string_view{l}](auto what) {
+             return lsv.starts_with(what);
+         };
+@@ -1325,6 +1348,7 @@ void CFileLoader::LoadLevel(const char* levelFileName) {
+             const auto path = ExtractPathFor("TEXDICTION");
+             ZoneText(path, strlen(path));
+ 
++            LLLog("LoadLevel: TEXDICTION handler entered");
+             LoadingScreenLoadingFile(path);
+ 
+             const auto txd = LoadTexDictionary(path);
+@@ -1338,6 +1362,7 @@ void CFileLoader::LoadLevel(const char* levelFileName) {
+             ZoneText(path, strlen(path));
+ 
+             if (!hasLoadedAnyIPLs) {
++                LLLog("LoadLevel: first IPL — running one-time init");
+                 MatchAllModelStrings();
+ 
+                 LoadingScreenLoadingFile("Object Data");
+@@ -1346,11 +1371,13 @@ void CFileLoader::LoadLevel(const char* levelFileName) {
+                 LoadingScreenLoadingFile("Setup vehicle info data");
+                 CVehicleModelInfo::SetupCommonData();
+ 
++                LLLog("LoadLevel: before CStreaming::Init2");
+                 LoadingScreenLoadingFile("Streaming Init");
+                 CStreaming::Init2();
+ 
+                 CLoadingScreen::NewChunkLoaded();
+ 
++                LLLog("LoadLevel: before CColStore::LoadAllBoundingBoxes");
+                 LoadingScreenLoadingFile("Collision");
+                 CColStore::LoadAllBoundingBoxes();
+ 
+@@ -1395,8 +1422,11 @@ void CFileLoader::LoadLevel(const char* levelFileName) {
+                     const auto path = ExtractPathFor(v.id);
+                     ZoneText(path, strlen(path));
+ 
++                    { char buf[512]; wsprintfA(buf, "LoadLevel: before LoadingScreenLoadingFile path=%s", path); LLLog(buf); }
+                     LoadingScreenLoadingFile(path);
++                    { char buf[512]; wsprintfA(buf, "LoadLevel: before fn call path=%s", path); LLLog(buf); }
+                     v.fn(path);
++                    LLLog("LoadLevel: fn returned");
+ 
+                     break;
+                 }
+@@ -1404,10 +1434,12 @@ void CFileLoader::LoadLevel(const char* levelFileName) {
+         }
+     }
+     CFileMgr::CloseFile(f);
++    { char buf[128]; wsprintfA(buf, "LoadLevel: file closed, %d lines read", lineCount); LLLog(buf); }
+ 
+     RwTexDictionarySetCurrent(txd);
+ 
+     if (hasLoadedAnyIPLs) {
++        LLLog("LoadLevel: before LoadAllRemainingIpls");
+         CIplStore::LoadAllRemainingIpls();
+         CColStore::BoundingBoxesPostProcess();
+         CTrain::InitTrains();

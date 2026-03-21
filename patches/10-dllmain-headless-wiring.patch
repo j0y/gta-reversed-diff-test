@@ -1,0 +1,43 @@
+diff --git a/source/dllmain.cpp b/source/dllmain.cpp
+index d4e8d6ea..80507df6 100644
+--- a/source/dllmain.cpp
++++ b/source/dllmain.cpp
+@@ -5,7 +5,9 @@
+ #include "extensions/Configuration.hpp"
+ #include "reversiblehooks/RootHookCategory.h"
+ 
++#include "reversiblehooks/RootHookCategory.h"
+ void InjectHooksMain(HMODULE hThisDLL);
++void InstallHeadlessRenderStubs();
+ 
+ void DisplayConsole()
+ {
+@@ -87,7 +89,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReser
+     case DLL_PROCESS_ATTACH:
+     {
+         // Fail if RenderWare has already been started
+-        if (*(RwCamera**)0xC1703C)
++        if (false && *(RwCamera**)0xC1703C)
+         {
+             MessageBox(NULL, "gta_reversed failed to load (RenderWare has already been started)", "Error", MB_ICONERROR | MB_OK);
+             return FALSE;
+@@ -99,6 +101,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReser
+         SetConsoleOutputCP(CP_UTF8);
+ 
+         DisplayConsole();
++        { FILE* _f = fopen("C:\\dllmain_reached.log", "w"); if(_f){fprintf(_f,"DllMain reached\n");fclose(_f);} }
+         CommandLine::Load(__argc, __argv);
+ 
+         if (CommandLine::waitForDebugger)
+@@ -108,6 +111,11 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReser
+ 
+         InjectHooksMain(hModule);
+         ApplyCommandLineHookSettings();
++        InstallHeadlessRenderStubs();
++        /* Phase 4: Hook changes for differential testing are handled at runtime
++           by differential_test.cpp (ApplyHookConfig at state 9), not here.
++           The --unhook-except=Global/CLoadingScreen flag already sets the correct
++           init-time hook state via ApplyCommandLineHookSettings above. */
+         break;
+     }
+     case DLL_THREAD_ATTACH:

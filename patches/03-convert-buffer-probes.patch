@@ -1,0 +1,154 @@
+diff --git a/source/game_sa/FileLoader.cpp b/source/game_sa/FileLoader.cpp
+index 9224ec42..e651dede 100644
+--- a/source/game_sa/FileLoader.cpp
++++ b/source/game_sa/FileLoader.cpp
+@@ -6,6 +6,21 @@
+ */
+ #include "StdInc.h"
+ 
++#ifdef NOTSA_HEADLESS
++static void FLLog(const char* msg) {
++    HANDLE h = CreateFileA("C:\\fileloader.log", FILE_APPEND_DATA,
++                           FILE_SHARE_READ | FILE_SHARE_WRITE,
++                           NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
++    if (h != INVALID_HANDLE_VALUE) {
++        char buf[512];
++        int len = wsprintfA(buf, "[%lu] %s\r\n", GetTickCount(), msg);
++        DWORD written;
++        WriteFile(h, buf, len, &written, NULL);
++        CloseHandle(h);
++    }
++}
++#endif
++
+ #include "CarGenerator.h"
+ #include "TheCarGenerators.h"
+ #include "Occlusion.h"
+@@ -405,16 +420,32 @@ bool CFileLoader::LoadClumpFile(RwStream* stream, uint32 modelIndex) {
+         }
+     }
+ 
++
++#ifdef NOTSA_HEADLESS
++    FLLog("LoadClumpFile: before RwStreamFindChunk");
++#endif
+     if (!RwStreamFindChunk(stream, rwID_CLUMP, nullptr, nullptr))
+         return false;
+ 
++#ifdef NOTSA_HEADLESS
++    FLLog("LoadClumpFile: RwStreamFindChunk OK");
++#endif
+     bool isVehicle = mi->GetModelType() == MODEL_INFO_VEHICLE;
+     if (isVehicle) {
++#ifdef NOTSA_HEADLESS
++        FLLog("LoadClumpFile: vehicle path, SetModelInfo + UseCommonVehTXD");
++#endif
+         CCollisionPlugin::SetModelInfo(mi);
+         CVehicleModelInfo::UseCommonVehicleTexDicationary();
+     }
+ 
++#ifdef NOTSA_HEADLESS
++    FLLog("LoadClumpFile: before RpClumpStreamRead");
++#endif
+     RpClump* clump = RpClumpStreamRead(stream);
++#ifdef NOTSA_HEADLESS
++    { char _b[128]; wsprintfA(_b, "LoadClumpFile: RpClumpStreamRead=%p", (void*)clump); FLLog(_b); }
++#endif
+ 
+     if (isVehicle) {
+         CCollisionPlugin::SetModelInfo(nullptr);
+diff --git a/source/game_sa/Pipelines/CustomCarEnvMap/CustomCarEnvMapPipeline.cpp b/source/game_sa/Pipelines/CustomCarEnvMap/CustomCarEnvMapPipeline.cpp
+index 8be0ed9a..7d98a2ba 100644
+--- a/source/game_sa/Pipelines/CustomCarEnvMap/CustomCarEnvMapPipeline.cpp
++++ b/source/game_sa/Pipelines/CustomCarEnvMap/CustomCarEnvMapPipeline.cpp
+@@ -98,14 +98,22 @@ bool IsEnvironmentMappingSupported() {
+ 
+ // 0x5DA020
+ bool CCustomCarEnvMapPipeline::CreatePipe() {
++    // Pools must be created BEFORE the pipeline check — RW plugin stream-read
++    // callbacks (pluginEnvMatStreamReadCB, pluginSpecMatStreamReadCB) allocate
++    // from these pools during RpClumpStreamRead, even if the render pipeline
++    // itself is unavailable (e.g. headless/null D3D9).
++    if (!m_gEnvMapPipeMatDataPool)
++        m_gEnvMapPipeMatDataPool = new CustomEnvMapPipeMaterialDataPool(4096, "CustomEnvMapPipeMatDataPool");
++    if (!m_gEnvMapPipeAtmDataPool)
++        m_gEnvMapPipeAtmDataPool = new CustomEnvMapPipeAtomicDataPool(1024, "CustomEnvMapPipeAtmDataPool");
++    if (!m_gSpecMapPipeMatDataPool)
++        m_gSpecMapPipeMatDataPool = new CustomSpecMapPipeMaterialDataPool(4096, "CustomSpecMapPipeMaterialDataPool");
++
+     ObjPipeline = CreateCustomObjPipe();
+     if (!ObjPipeline || !IsEnvironmentMappingSupported()) {
+         return false;
+     }
+     std::memset(&g_GameLight, 0, sizeof(g_GameLight));
+-    m_gEnvMapPipeMatDataPool = new CustomEnvMapPipeMaterialDataPool(4096, "CustomEnvMapPipeMatDataPool");
+-    m_gEnvMapPipeAtmDataPool = new CustomEnvMapPipeAtomicDataPool(1024, "CustomEnvMapPipeAtmDataPool");
+-    m_gSpecMapPipeMatDataPool = new CustomSpecMapPipeMaterialDataPool(4096, "CustomSpecMapPipeMaterialDataPool");
+     return true;
+ }
+ 
+diff --git a/source/game_sa/Streaming.cpp b/source/game_sa/Streaming.cpp
+index adfe801c..059e01df 100644
+--- a/source/game_sa/Streaming.cpp
++++ b/source/game_sa/Streaming.cpp
+@@ -423,6 +423,22 @@ bool CStreaming::HasVehicleUpgradeLoaded(int32 modelId) {
+     return otherUpgradeModelId == -1 || GetInfo(otherUpgradeModelId).IsLoaded();
+ }
+ 
++// Helper for ConvertBufferToObject probes
++#ifdef NOTSA_HEADLESS
++static void CBOLog(const char* msg) {
++    HANDLE h = CreateFileA("C:\\streaming.log", FILE_APPEND_DATA,
++                           FILE_SHARE_READ | FILE_SHARE_WRITE,
++                           NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
++    if (h != INVALID_HANDLE_VALUE) {
++        char buf[512];
++        int len = wsprintfA(buf, "[%lu] %s\r\n", GetTickCount(), msg);
++        DWORD written;
++        WriteFile(h, buf, len, &written, NULL);
++        CloseHandle(h);
++    }
++}
++#endif
++
+ // 0x40C6B0
+ bool CStreaming::ConvertBufferToObject(uint8* fileBuffer, int32 modelId) {
+     CStreamingInfo* pStartLoadedListStreamingInfo = ms_startLoadedList; // todo: useless var?
+@@ -439,6 +455,11 @@ bool CStreaming::ConvertBufferToObject(uint8* fileBuffer, int32 modelId) {
+ 
+     switch (GetModelType(modelId)) {
+     case eModelType::DFF: {
++#ifdef NOTSA_HEADLESS
++        { char _cb[256]; wsprintfA(_cb, "CBO: modelId=%d rwType=%d modelType=%d bufSz=%d txdIdx=%d",
++            modelId, (int)mi->GetRwModelType(), (int)mi->GetModelType(),
++            (int)bufferSize, (int)mi->m_nTxdIndex); CBOLog(_cb); }
++#endif
+ 
+         // Check if TXD and IFP are loaded
+         const int32& animFileIndex = mi->GetAnimFileIndex();
+@@ -478,12 +499,25 @@ bool CStreaming::ConvertBufferToObject(uint8* fileBuffer, int32 modelId) {
+             // TODO/BUGFIX: Stream seemingly never closed? (But initialized multiple times)
+             RwStream* stream2 = _rwStreamInitialize(&gRwStream, 0, rwSTREAMMEMORY, rwSTREAMREAD, &rwStreamInitData);
+ 
++
++#ifdef NOTSA_HEADLESS
++            CBOLog("CBO: before LoadAtomicFile (rpATOMIC path)");
++#endif
+             bFileLoaded = CFileLoader::LoadAtomicFile(stream2, modelId);
++#ifdef NOTSA_HEADLESS
++            { char _cb[128]; wsprintfA(_cb, "CBO: LoadAtomicFile returned %d", bFileLoaded?1:0); CBOLog(_cb); }
++#endif
+             if (pRtDictionary) {
+                 RtDictDestroy(pRtDictionary);
+             }
+         } else {
++#ifdef NOTSA_HEADLESS
++            CBOLog("CBO: before LoadClumpFile (clump path)");
++#endif
+             bFileLoaded = CFileLoader::LoadClumpFile(stream, modelId);
++#ifdef NOTSA_HEADLESS
++            { char _cb[128]; wsprintfA(_cb, "CBO: LoadClumpFile returned %d", bFileLoaded?1:0); CBOLog(_cb); }
++#endif
+         }
+ 
+         if (!streamingInfo.IsLoadingFinishing()) {

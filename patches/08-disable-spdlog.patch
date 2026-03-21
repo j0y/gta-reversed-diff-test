@@ -1,0 +1,80 @@
+diff --git a/source/app/app_debug.cpp b/source/app/app_debug.cpp
+index e1ecf9b4..a91b3fca 100644
+--- a/source/app/app_debug.cpp
++++ b/source/app/app_debug.cpp
+@@ -197,26 +197,26 @@ LONG WINAPI WindowsExceptionHandler(PEXCEPTION_POINTERS pExceptionInfo) {
+ }
+ 
+ notsa::Logging::Logging() {
+-    using namespace std::chrono_literals;
+-#if 0
+-    while (!IsDebuggerPresent()) {
+-        Sleep(1);
+-    }
+-#endif
+-    spdlog::init_thread_pool(1 << 16, 4);
+-
+-    // See https://github.com/gabime/spdlog/wiki/3.-Custom-formatting#pattern-flags
+-    spdlog::set_pattern("%^[%l][%H:%M:%S.%e][%s:%#]: %v%$");
+-    spdlog::enable_backtrace(128);
+-    spdlog::set_level(spdlog::level::debug);
+-
+-    m_sinks.emplace_back(std::make_shared<spdlog::sinks::basic_file_sink_mt>("logs/log.log"));
+-    m_sinks.emplace_back(std::make_shared<spdlog::sinks::stdout_color_sink_mt>());
+-
+-    spdlog::set_default_logger(Create("default"));
+-    spdlog::flush_every(100ms);
+-    
+-    AddVectoredExceptionHandler(1, WindowsExceptionHandler);
++//     using namespace std::chrono_literals;
++// #if 0
++//     while (!IsDebuggerPresent()) {
++//         Sleep(1);
++//     }
++// #endif
++//     spdlog::init_thread_pool(1 << 16, 4);
++// 
++//     // See https://github.com/gabime/spdlog/wiki/3.-Custom-formatting#pattern-flags
++//     spdlog::set_pattern("%^[%l][%H:%M:%S.%e][%s:%#]: %v%$");
++//     spdlog::enable_backtrace(128);
++//     spdlog::set_level(spdlog::level::debug);
++// 
++//     m_sinks.emplace_back(std::make_shared<spdlog::sinks::basic_file_sink_mt>("logs/log.log"));
++//     m_sinks.emplace_back(std::make_shared<spdlog::sinks::stdout_color_sink_mt>());
++// 
++//     spdlog::set_default_logger(Create("default"));
++//     spdlog::flush_every(100ms);
++//     
++//     /* AddVectoredExceptionHandler disabled for Wine */;
+ }
+ 
+ notsa::Logging::~Logging() {
+@@ -224,10 +224,10 @@ notsa::Logging::~Logging() {
+ }
+ 
+ auto notsa::Logging::Create(std::string name, std::optional<spdlog::level::level_enum> level) -> notsa::log_ptr {
+-    auto logger = std::make_shared<spdlog::logger>(name, m_sinks.begin(), m_sinks.end());
+-    spdlog::initialize_logger(logger);
+-    if (level.has_value()) {
+-        logger->set_level(*level);
+-    }
+-    return logger;
++    return nullptr; //     auto logger = std::make_shared<spdlog::logger>(name, m_sinks.begin(), m_sinks.end());
++//     spdlog::initialize_logger(logger);
++//     if (level.has_value()) {
++//         logger->set_level(*level);
++//     }
++//     return logger;
+ }
+diff --git a/source/app/app_debug.h b/source/app/app_debug.h
+index 7e584c44..8ac53abc 100644
+--- a/source/app/app_debug.h
++++ b/source/app/app_debug.h
+@@ -1,6 +1,6 @@
+ #pragma once
+ 
+-#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
++#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_OFF
+ #include <spdlog/spdlog.h>
+ #include <spdlog/logger.h>
+ #include <extensions/Singleton.hpp>
