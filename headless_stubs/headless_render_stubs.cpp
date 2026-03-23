@@ -319,6 +319,24 @@ static bool LoggedPsSelectDevice() {
     }
     InitLog("  RwEngineSetVideoMode OK");
 
+    // Set RsGlobal resolution from the selected video mode.
+    // The original psSelectDevice at 0x746190 does this (WinPs.cpp:578):
+    //   RsGlobal.maximumWidth  = vmi.width;
+    //   RsGlobal.maximumHeight = vmi.height;
+    // Without this, SCREEN_STRETCH_X/Y return wrong values and any
+    // screen-space function (CRadar, CHud, etc.) diverges in diff tests.
+    memset(&vmi, 0, sizeof(vmi));
+    pRwEngineGetVMInfo(&vmi, gGcurSelVM);
+    if (vmi.width > 0 && vmi.height > 0) {
+        RsGlobal.maximumWidth  = vmi.width;
+        RsGlobal.maximumHeight = vmi.height;
+    } else {
+        // Fallback: use our null D3D9 default (800x600)
+        RsGlobal.maximumWidth  = 800;
+        RsGlobal.maximumHeight = 600;
+    }
+    InitLog("  RsGlobal.maximumWidth=%d maximumHeight=%d", RsGlobal.maximumWidth, RsGlobal.maximumHeight);
+
     InitLog("=== LoggedPsSelectDevice() returning TRUE ===");
     return true;
 }

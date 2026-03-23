@@ -7,7 +7,7 @@ Headless Linux testing infrastructure for [gta-reversed](https://github.com/gta-
 1. **Builds** `gta_reversed.asi` on Linux with the real MSVC compiler running under Wine
 2. **Runs** GTA:SA headlessly — null D3D9 device, null audio, virtual framebuffer
 3. **Tests** reversed functions by toggling hooks at runtime and comparing original vs reversed behavior
-4. **Reports** bugs found by differential testing (23 confirmed bugs so far across 844 tests)
+4. **Reports** bugs found by differential testing (38 confirmed bugs so far across 1845 tests)
 
 ## Quick Start
 
@@ -51,7 +51,7 @@ Output: `build-output/gta_reversed.asi` (~22MB) and `build-output/d3d9.dll` (~24
 ### Run tests
 
 ```bash
-# Scenario tests (844 tests, ~15000 assertions)
+# Scenario tests (1845 tests, ~32000 assertions)
 ./scripts/docker-build.sh build-tests   # Incremental rebuild (~6s)
 ./scripts/run.sh test                    # Run full test suite
 
@@ -105,7 +105,7 @@ Test harness (inside .asi at game state 9):
 │   ├── differential_test.cpp   # Hash-based differential testing
 │   ├── headless_render_stubs.cpp
 │   ├── soak_test.cpp
-│   └── tests/                  # Per-class test files (75 files, auto-discovered)
+│   └── tests/                  # Per-class test files (293 files, auto-discovered)
 ├── null_d3d9/                  # Null D3D9 stub (all 11 COM interfaces)
 ├── test_asi/                   # Minimal test ASI for pipeline debugging
 ├── patches/                    # Build-time patches for gta-reversed
@@ -131,7 +131,7 @@ Test harness (inside .asi at game state 9):
 
 ## Test Results
 
-844 tests across 95 classes with ~15,000 assertions. 23 confirmed bugs found in gta-reversed via differential testing, including:
+1845 tests across ~150 classes with ~32,000 assertions. 38 confirmed bugs found in gta-reversed via differential testing, including:
 
 - Wrong array dimensions (`CVehicleModelInfo::GetWheelUpgrade`)
 - Wrong memory addresses (`CGangs::GetWillAttackPlayerWithCops`)
@@ -139,6 +139,16 @@ Test harness (inside .asi at game state 9):
 - Off-by-one loop bounds (`CPedType::FindPedType`)
 - Swapped axes (`CVehicle::FindTyreNearestPoint`)
 - Wrong field offsets (`CRopes::IsCarriedByRope`)
+- Wrong restart point lookup (`CRestart::FindClosestHospitalRestartPoint`, `FindClosestPoliceRestartPoint`)
+- Wrong distance calculation (`CGameLogic::CalcDistanceToForbiddenTrainCrossing`)
+- String truncation bug (`CMessages::StringCopy`)
+- Empty area edge case (`CTagManager::GetPercentageTaggedInArea`)
+- Wrong airborne detection (`CAutomobile::IsInAir`)
+- Wrong item table layout (`CShopping::FindItem`, `GetPrice`, `HasPlayerBought`, `GetExtraInfo`, `GetItemIndex`)
+- Wrong newline parsing (`CMessages::CutString`)
+- Wrong pickup text lookup (`CPickup::FindStringForTextIndex`)
+- Wrong ped hold object (`CPedGroupMembership::GetObjectForPedToHold`)
+- Wrong recording file index (`CVehicleRecording::RegisterRecordingFile`)
 
 Full details in [phase4-results.md](phase4-results.md).
 
@@ -163,7 +173,7 @@ Full details in [phase4-results.md](phase4-results.md).
 | **2**: Headless Bootstrap | Done | Game reaches state 9 (IDLE), 24 blockers fixed |
 | **3**: RW Render Stubs | Done | Rendering no-oped, game logic runs at full speed |
 | **4**: Differential Harness | Done | Deterministic baselines, 29 categories tested |
-| **4b**: Scenario Tests | Done | 844 tests, 95 classes, 23 bugs found |
+| **4b**: Scenario Tests | Done | 1845 tests, ~150 classes, 38 bugs found |
 | **5**: CI Pipeline | Not started | GitHub Actions with self-hosted runner |
 
 ## License

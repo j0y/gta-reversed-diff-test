@@ -47,7 +47,7 @@ Build a reproducible, headless testing environment on Linux that can differentia
 | **Phase 2**: Headless Bootstrap | ✅ Complete — game reaches IDLE state (state 9), 24 blockers fixed total |
 | **Phase 3**: RW Render Stubs | ✅ Complete — render functions no-oped, game logic runs |
 | **Phase 4**: Differential Harness | ✅ Complete — deterministic baselines, all-disabled works, hooks.csv collected, 29 categories tested |
-| **Phase 4b**: Scenario Tests | ✅ Working — 844 tests, ~15000 assertions, 95 classes, 75 test files, 23 bugs found. CStreaming loads arbitrary models; cross-type tests cover bike/boat/heli/plane/bmx/trailer |
+| **Phase 4b**: Scenario Tests | ✅ Working — 1845 tests, ~32000 assertions, ~150 classes, 293 test files, 38 bugs found. Deep differential tests found 15 new bugs: CShopping (5), CRestart (2), CGameLogic (1), CTagManager (1), CMessages (2), CAutomobile (1), CPickup (1), CPedGroupMembership (1), CVehicleRecording (1). Sret asm workaround. RsGlobal fix. Timeout 600s. |
 | **Phase 5**: CI Pipeline | Not started |
 
 ---

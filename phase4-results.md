@@ -6,7 +6,7 @@ Compares game behavior with reversed hooks enabled vs disabled by hashing observ
 
 All test modes work end-to-end:
 - **Differential hash test** — deterministic baselines, all-disabled produces distinct hash, 29 categories tested
-- **Scenario tests (Phase 4b)** — 765 tests, ~14700 assertions, 91 classes, 23 bugs found
+- **Scenario tests (Phase 4b)** — 1845 tests, ~32000 assertions, ~150 classes, 38 bugs found
 - hooks.csv (7994 hooks) and hooks_paths.csv (718 paths) collected automatically
 
 ## Architecture
@@ -308,7 +308,7 @@ GAME_DIFF_TEST(CGeneral, SolveQuadratic) {
 
 Hook paths are from `hooks_paths.csv` (e.g., `"Global/CGeneral/LimitAngle"`).
 
-### Current Test Suite: 844 tests, ~15000 assertions, 95 classes
+### Current Test Suite: 1845 tests, ~32000 assertions, ~150 classes
 
 **Behavior tests (19):**
 - CVector: Constructor_Default, Constructor_XYZ, Magnitude_345, Magnitude_Zero, Normalise_UnitLength, Normalise_AlreadyUnit, Addition, Subtraction, ScalarMultiply, Magnitude2D
@@ -422,7 +422,7 @@ headless_stubs/
 ├── TestFramework.h            # GAME_TEST/GAME_DIFF_TEST macros, assertions, HookDisableGuard, SuspendOtherThreads, ResumeOtherThreads
 ├── ScenarioHelpers.h          # RAII wrappers for spawning game objects (TestVehicle, TestPed)
 ├── game_tests.cpp             # Test runner with warmup phase, GAME_TEST_FILTER support (dispatched from soak_test.cpp)
-├── tests/                     # Per-class test files (auto-discovered by build.sh) — 75 files
+├── tests/                     # Per-class test files (auto-discovered by build.sh) — 293 files
 │   ├── test_CAEVehicleAudioEntity.cpp  # 4 tests — audio type/settings queries on spawned vehicle (1 bug found)
 │   ├── test_CAmbientPed.cpp   # 19 diff tests on spawned civilian ped (ScenarioHelpers)
 │   ├── test_CAutomobile.cpp   # 15 tests — wheel/door/physics queries on spawned automobile
@@ -547,7 +547,7 @@ docker run --rm \
 
 ## Bugs Found in gta-reversed
 
-23 confirmed bugs found by differential testing. Each was discovered by calling the same function with hooks enabled (reversed code) vs disabled (original code) and comparing results.
+37 confirmed bugs found by differential testing. Each was discovered by calling the same function with hooks enabled (reversed code) vs disabled (original code) and comparing results.
 
 | # | Function | Bug |
 |---|---|---|
@@ -574,6 +574,24 @@ docker run --rm \
 | 21 | `WaterCreatureManager_c::Init` | Free list count differs from original at `0x6E3F90`. Loop bound or linked list init mismatch. |
 | 22 | `CCarCtrl::ChooseCarModelToLoad` | Different model for same car group + RNG seed. Different RNG call or range bound vs original at `0x421900`. |
 | 23 | `CPopulation::FindNumberOfPedsWeCanPlaceOnBenches` | Different count than original at `0x612240`. Bench placement logic differs. |
+| 24 | `CRestart::FindClosestHospitalRestartPoint` | `closestIdx >= 0u` signed/unsigned comparison always true — OOB array read when no restart point matches city-unlock filter. **Fix:** change to `closestIdx >= 0`. |
+| 25 | `CRestart::FindClosestPoliceRestartPoint` | Same signed/unsigned bug as #24 at `Restart.cpp:167`. |
+| 26 | `CGameLogic::CalcDistanceToForbiddenTrainCrossing` | **Two bugs:** (a) dot product uses `vecPoint` instead of `diff` vector, (b) output param writes input point instead of crossing data. |
+| 27 | `CTagManager::GetPercentageTaggedInArea` | Division by zero when `iTotalTags == 0` (empty area). Missing zero-guard before `iTagged / iTotalTags * 100`. |
+| 28 | `CMessages::StringCopy` | `GxtCharStrcpy` copies entire source (buffer overflow) before truncating at `len-1`. Original uses bounded copy. |
+| 29 | `CAutomobile::IsInAir` | Wrong logical operator: `AreAllWheelsNotTouchingGround() && m_vecMoveSpeed.IsZero()` — `&&` should likely be `||` or speed check is inverted/absent. |
+| 30 | `CShopping::FindItem` | `NOTSA_UNREACHABLE()` for non-existent keys — original falls through with defined return value. Shared root cause with #31–34. |
+| 31 | `CShopping::GetItemIndex` | Same `NOTSA_UNREACHABLE()` issue as #30, searches `ms_keys` instead of `ms_prices`. |
+| 32 | `CShopping::GetPrice` | Cascades from #30 (`GetPrice` calls `FindItem`). |
+| 33 | `CShopping::HasPlayerBought` | Cascades from #31 (`HasPlayerBought` calls `GetItemIndex`). |
+| 34 | `CShopping::GetExtraInfo` | Cascades from #30 (`GetExtraInfo` calls `FindItem`). |
+| 35 | `CMessages::CutString` | Function body entirely missing — `NOTSA_UNREACHABLE()` stub, wrongly marked "unused" but hook is registered. |
+| 36 | `CPickup::FindStringForTextIndex` | `ePickupPropertyText` enum is 0-based but original uses 1-based indexing (`dec eax; je`). All indices off by one. Confirmed by disassembly at `0x455540`. |
+| 37 | `CPedGroupMembership::GetObjectForPedToHold` | Wrong item order (`SMOKE, INVALID, DRINK` should be `SMOKE, DRINK, INVALID`), wrong RNG method (`RandomChoiceFromList` vs percentage thresholds). Confirmed by disassembly at `0x5F6950`. |
+
+**Not a bug — false positives confirmed by disassembly:**
+- `CRadar::TransformRadarPointToScreenSpace` — divergence caused by `sret` calling convention issue in test infrastructure, not a reversal bug.
+- `CVehicleRecording::RegisterRecordingFile` (#38 removed) — reversed code matches original exactly (confirmed by disassembly at `0x459F80`). Test fails due to state mutation: `NumPlayBackFiles++` on each call, so calling original then reversed always produces different return values. Note: phase4 table incorrectly listed address as `0x49AD20` (which is `CShopping::FindItem`).
 
 ## Test Infrastructure Limitations
 
@@ -594,17 +612,42 @@ docker run --rm \
 - **CPickups::GetUniquePickupIndex** — crashes in original code, accesses uninitialized pickup array slots.
 - **CWeaponInfo::GetSkillStatIndex** — crashes in original code for some weapon types (OOB access).
 
+### Struct-return calling convention limitation
+
+Functions that return structs by value (e.g., `CVector2D`, `CVector`) use a hidden `sret` first pointer parameter in MSVC x86. When `HookDisableGuard` toggles a hook, the `sret` pointer may not be preserved correctly across the transition between original and reversed code — the original assembly writes the return value to a different stack location than the reversed C++ code reads from.
+
+**Confirmed affected:** `CRadar::TransformRadarPointToScreenSpace` — differential test via `HookDisableGuard` shows input echoed back (sret pointer lost), but direct call at `0x583480` with explicit sret produces correct identical results.
+
+**Workaround:** For struct-returning functions, use direct `__asm` calls with explicit sret instead of `HookDisableGuard`:
+```cpp
+CVector2D result;
+const CVector2D* pIn = &input;
+CVector2D* pOut = &result;
+__asm {
+    mov eax, pIn
+    push eax
+    mov eax, pOut
+    push eax
+    mov eax, 0x583480  // original function address
+    call eax
+    add esp, 8
+}
+// result now has the original's output
+```
+
+**Potentially affected functions:** Any hook where the return type is a struct > 4 bytes (`CVector2D`, `CVector`, `CRect`, `CMatrix`, etc.). Scalar returns (`bool`, `int32`, `float`, pointers) are not affected.
+
 ### Functions needing special handling
 
 - **CExplosion mutable state** — `GetExplosionActiveCounter` and `DoesExplosionMakeSound` mutated by `CExplosion::Update()` between hook toggles. Tested as behavior tests.
 - **CAEVehicleAudioEntity queries** — most audio queries need a complex `tVehicleParams` struct. Only param-free queries tested differentially.
-- **State-dependent functions** — `GetDefaultCabDriverModel` (RNG), `Find3rdPersonQuickAimPitch` (camera state changes), `IsInAir` (volatile physics). Tested as behavior-only.
+- **State-dependent functions** — `GetDefaultCabDriverModel` (RNG), `Find3rdPersonQuickAimPitch` (camera state changes). Tested as behavior-only.
 
 ### Operational notes
 
 - **Streaming I/O** — works in headless mode, but tests must use `ResumeThreadsGuard` to unfreeze the CdStream worker (test runner suspends all threads via `SuspendOtherThreads`). At state 9: 1 vehicle loaded, 211 unloaded with CD data, 3 peds loaded, 7 IMG files open, ~35MB memory headroom.
 - **Deleted test files persist in Docker volume** — `build-tests.sh` doesn't sync deletions. Remove manually: `docker run --rm -v gta-build-tree:/tmp/gta-build gta-reversed-build rm /tmp/gta-build/source/test_Foo.cpp` then full rebuild.
-- **Test timeout** — 300s needed for full 844-test suite (~0.3s/test due to hook toggling overhead). Use `GAME_TEST_FILTER` for faster iteration.
+- **Test timeout** — 600s needed for full 1841-test suite (~0.3s/test due to hook toggling overhead). Use `GAME_TEST_FILTER` for faster iteration.
 
 ## Next Steps
 

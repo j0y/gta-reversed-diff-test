@@ -223,7 +223,7 @@ docker run --rm \
 | `GAME_TEST_FILTER` | (unset) | Only run tests whose `Class/Name` contains this substring (e.g., `CStreamingLoad`) |
 | `GAME_TEST_RESULTS_FILE` | `game_test_results.txt` | Output file path |
 
-Tests are organized as per-class files in `headless_stubs/tests/test_*.cpp` (auto-discovered by build.sh). Includes behavior tests, differential tests, scenario tests with spawned game objects, streaming I/O tests, and cross-vehicle-type tests (bikes, boats, helis, planes loaded via CStreaming). 844 tests across 95 classes, 23 bugs found. Timeout of 300s is needed for the full suite (~0.3s per test with hook toggling overhead).
+Tests are organized as per-class files in `headless_stubs/tests/test_*.cpp` (auto-discovered by build.sh). Includes behavior tests, differential tests, scenario tests with spawned game objects, streaming I/O tests, cross-vehicle-type tests (bikes, boats, helis, planes loaded via CStreaming), task system tests (86 classes), event system tests (25 classes), animation tests, and collision tests. 1845 tests across ~150 classes, 38 bugs found. Timeout of 600s is needed for the full suite (~0.3s/test due to hook toggling overhead).
 
 To add tests for a new class, create `headless_stubs/tests/test_ClassName.cpp` with `GAME_TEST()` or `GAME_DIFF_TEST()` macros.
 
