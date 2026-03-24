@@ -84,3 +84,14 @@ GAME_DIFF_TEST(CCullZones2, DoExtraAirResistanceForPlayer) {
     rev = CCullZones::DoExtraAirResistanceForPlayer();
     EXPECT_EQ(orig, rev);
 }
+
+// --- FindZoneWithStairsAttributeForPlayer ---
+
+GAME_DIFF_TEST(CCullZones2, FindZoneWithStairsAttributeForPlayer) {
+    void* orig;
+    void* rev;
+    { HookDisableGuard guard("Global/CCullZones/FindZoneWithStairsAttributeForPlayer");
+      orig = (void*)CCullZones::FindZoneWithStairsAttributeForPlayer(); }
+    rev = (void*)CCullZones::FindZoneWithStairsAttributeForPlayer();
+    EXPECT_EQ(orig, rev);
+}

@@ -30,3 +30,35 @@ GAME_DIFF_TEST(CVehicleRecording, RegisterRecordingFile_Various) {
         EXPECT_EQ(orig, rev);
     }
 }
+
+// --- FindIndexWithFileNameNumber ---
+
+GAME_DIFF_TEST(CVehicleRecording, FindIndexWithFileNameNumber_Range) {
+    for (int32 fileNum = 0; fileNum < 20; fileNum++) {
+        int32 orig, rev;
+        { HookDisableGuard guard("Global/CVehicleRecording/FindIndexWithFileNameNumber");
+          orig = CVehicleRecording::FindIndexWithFileNameNumber(fileNum); }
+        rev = CVehicleRecording::FindIndexWithFileNameNumber(fileNum);
+        EXPECT_EQ(orig, rev);
+    }
+}
+
+// --- IsPlaybackGoingOnForCar ---
+
+GAME_DIFF_TEST(CVehicleRecording, IsPlaybackGoingOnForCar_Null) {
+    bool orig, rev;
+    { HookDisableGuard guard("Global/CVehicleRecording/IsPlaybackGoingOnForCar");
+      orig = CVehicleRecording::IsPlaybackGoingOnForCar(nullptr); }
+    rev = CVehicleRecording::IsPlaybackGoingOnForCar(nullptr);
+    EXPECT_EQ(orig, rev);
+}
+
+// --- IsPlaybackPausedForCar ---
+
+GAME_DIFF_TEST(CVehicleRecording, IsPlaybackPausedForCar_Null) {
+    bool orig, rev;
+    { HookDisableGuard guard("Global/CVehicleRecording/IsPlaybackPausedForCar");
+      orig = CVehicleRecording::IsPlaybackPausedForCar(nullptr); }
+    rev = CVehicleRecording::IsPlaybackPausedForCar(nullptr);
+    EXPECT_EQ(orig, rev);
+}

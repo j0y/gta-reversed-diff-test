@@ -11,3 +11,30 @@ GAME_DIFF_TEST(CBridge, ShouldLightsBeFlashing) {
     rev = CBridge::ShouldLightsBeFlashing();
     EXPECT_EQ(orig, rev);
 }
+
+// --- Init ---
+
+GAME_DIFF_TEST(CBridge, Init) {
+    { HookDisableGuard guard("Global/CBridge/Init");
+      CBridge::Init(); }
+    CBridge::Init();
+    EXPECT_TRUE(true);
+}
+
+// --- Update ---
+
+GAME_DIFF_TEST(CBridge, Update) {
+    { HookDisableGuard guard("Global/CBridge/Update");
+      CBridge::Update(); }
+    CBridge::Update();
+    EXPECT_TRUE(true);
+}
+
+// --- FindBridgeEntities ---
+
+GAME_DIFF_TEST(CBridge, FindBridgeEntities) {
+    { HookDisableGuard guard("Global/CBridge/FindBridgeEntities");
+      CBridge::FindBridgeEntities(); }
+    CBridge::FindBridgeEntities();
+    EXPECT_TRUE(true);
+}

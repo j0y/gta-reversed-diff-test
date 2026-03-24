@@ -14,4 +14,8 @@ GAME_DIFF_TEST(CConversations, IsConversationGoingOn) {
     EXPECT_EQ(orig, rev);
 }
 
-// IsPlayerInPositionForConversation crashes headlessly (conversation subsystem not initialized). Skipped.
+// IsPlayerInPositionForConversation crashes headlessly. Skipped.
+
+// Clear — original crashes (conversation subsystem not initialized headlessly). Skipped.
+
+// EnableConversation/IsConversationAtNode take different args. Skipped.

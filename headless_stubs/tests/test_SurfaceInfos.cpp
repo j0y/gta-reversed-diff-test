@@ -58,6 +58,8 @@ GAME_DIFF_TEST(SurfaceInfos_c, GetTyreGrip) {
     }
 }
 
+// GetAdhesiveLimit takes CColPoint*, not SurfaceId. Skipped.
+
 GAME_DIFF_TEST(SurfaceInfos_c, GetWetMultiplier) {
     for (SurfaceId id = 0; id < NUM_SURFACES; id++) {
         float rev = g_surfaceInfos.GetWetMultiplier(id);

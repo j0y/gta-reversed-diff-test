@@ -51,9 +51,15 @@ Convenience wrapper to run the headless game in Docker.
 ./scripts/run.sh              # Run with default 90s timeout
 ./scripts/run.sh 120          # Run with custom timeout
 ./scripts/run.sh logs         # Dump logs from last run
+./scripts/run.sh test         # Run full test suite (600s)
+./scripts/run.sh test CVector  # Run filtered tests (120s)
+./scripts/run.sh test CVector,CPed,CVehicle3  # Multiple classes
+./scripts/run.sh diff         # Run differential hash test
 ```
 
 Mounts game data, build artifacts, scripts, and configs. Copies Wine log files to `/tmp/wine-logs/` on exit and prints key logs (scripts.log, state5.log, pgl.log).
+
+In test mode, handles `GAME_TEST_ENABLE`, `GAME_TEST_FILTER`, log/result file copying, and prints the test results to stdout. The filter supports comma-separated class names.
 
 ---
 
@@ -198,52 +204,36 @@ docker run --rm \
 
 ### Running scenario tests (Phase 4b)
 
-Run the game with `GAME_TEST_ENABLE=1` to execute in-process tests at state 9.
-
 ```bash
-docker run --rm \
-    -v ./GTASA:/game:ro \
-    -v ./build-output:/build:ro \
-    -v ./gta_sa_compact.exe:/gamebin/gta_sa_compact.exe:ro \
-    -v ./scripts:/scripts:ro \
-    -v ./configs:/configs:ro \
-    -v /tmp/wine-logs:/tmp/wine-logs \
-    -e GAME_TEST_ENABLE=1 \
-    -e TIMEOUT=300 \
-    gta-reversed-build bash -c '/scripts/run-headless.sh 2>&1; cp /opt/wine-gtasa/drive_c/*.log /tmp/wine-logs/ 2>/dev/null; cp /opt/wine-gtasa/drive_c/*.txt /tmp/wine-logs/ 2>/dev/null; cp /opt/wine-gtasa/drive_c/Games/GTASA/*.txt /tmp/wine-logs/ 2>/dev/null; true'
+./scripts/run.sh test                              # Full suite (600s timeout)
+./scripts/run.sh test CStreaming                    # Single class (120s timeout)
+./scripts/run.sh test CStreaming,CVehicle,CPed2     # Multiple classes (120s timeout)
 ```
 
-**Output:** `/tmp/wine-logs/game_test_results.txt` with per-test PASS/FAIL and assertion counts. The extra `cp` commands are needed because `run-headless.sh` only dumps `.log` files — the `.txt` test results must be copied out explicitly.
+`run.sh test` handles Docker mounts, env vars, log copying, and result display automatically.
 
-**Environment variables:**
+**Output:** Per-test PASS/FAIL with assertion counts, printed to stdout. Results also saved to `/tmp/wine-logs/game_test_results.txt`.
+
+**Filter syntax:** Comma-separated list of substrings matched against `ClassName/TestName` (OR logic). A test runs if any token matches. Examples:
+
+```bash
+./scripts/run.sh test CVector                      # All CVector tests
+./scripts/run.sh test CVector,CGeneral,CPed2       # Three classes
+./scripts/run.sh test CVector/Magnitude            # Specific test
+```
+
+**Environment variables** (for advanced use / direct `docker run`):
 
 | Variable | Default | Description |
 |---|---|---|
 | `GAME_TEST_ENABLE` | (unset) | Set to `1` to run scenario tests |
-| `GAME_TEST_FILTER` | (unset) | Only run tests whose `Class/Name` contains this substring (e.g., `CStreamingLoad`) |
+| `GAME_TEST_FILTER` | (unset) | Comma-separated substrings to match against `Class/Name` |
 | `GAME_TEST_RESULTS_FILE` | `game_test_results.txt` | Output file path |
+| `TIMEOUT` | `600` (full) / `120` (filtered) | Override via env: `TIMEOUT=300 ./scripts/run.sh test` |
 
-Tests are organized as per-class files in `headless_stubs/tests/test_*.cpp` (auto-discovered by build.sh). Includes behavior tests, differential tests, scenario tests with spawned game objects, streaming I/O tests, cross-vehicle-type tests (bikes, boats, helis, planes loaded via CStreaming), task system tests (86 classes), event system tests (25 classes), animation tests, and collision tests. 1845 tests across ~150 classes, 38 bugs found. Timeout of 600s is needed for the full suite (~0.3s/test due to hook toggling overhead).
+Tests are organized as per-class files in `headless_stubs/tests/test_*.cpp` (auto-discovered by build.sh). Includes behavior tests, differential tests, scenario tests with spawned game objects, streaming I/O tests, cross-vehicle-type tests, task system tests, event system tests, animation tests, and collision tests. See [phase4-results.md](phase4-results.md) for current test/bug counts. Timeout of 600s is needed for the full suite (~0.3s/test due to hook toggling overhead).
 
 To add tests for a new class, create `headless_stubs/tests/test_ClassName.cpp` with `GAME_TEST()` or `GAME_DIFF_TEST()` macros.
-
-**Filtered runs** (faster iteration on new tests):
-
-```bash
-docker run --rm \
-    -v ./GTASA:/game:ro \
-    -v ./build-output:/build:ro \
-    -v ./gta_sa_compact.exe:/gamebin/gta_sa_compact.exe:ro \
-    -v ./scripts:/scripts:ro \
-    -v ./configs:/configs:ro \
-    -v /tmp/wine-logs:/tmp/wine-logs \
-    -e GAME_TEST_ENABLE=1 \
-    -e GAME_TEST_FILTER=CStreamingLoad \
-    -e TIMEOUT=120 \
-    gta-reversed-build bash -c '/scripts/run-headless.sh 2>&1; cp /opt/wine-gtasa/drive_c/*.log /tmp/wine-logs/ 2>/dev/null; cp /opt/wine-gtasa/drive_c/*.txt /tmp/wine-logs/ 2>/dev/null; cp /opt/wine-gtasa/drive_c/Games/GTASA/*.txt /tmp/wine-logs/ 2>/dev/null; true'
-```
-
-The filter matches against `ClassName/TestName` (e.g., `GAME_TEST_FILTER=CStreaming` runs all CStreaming and CStreamingLoad tests). Skipped tests are reported in the output.
 
 ---
 

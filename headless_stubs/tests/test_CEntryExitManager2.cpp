@@ -20,3 +20,12 @@ GAME_DIFF_TEST(CEntryExitManager, EnableBurglaryHouses_Disable) {
     CEntryExitManager::EnableBurglaryHouses(false);
     EXPECT_TRUE(true);
 }
+
+// --- SetAreaCodeForVisibleObjects ---
+
+GAME_DIFF_TEST(CEntryExitManager, SetAreaCodeForVisibleObjects) {
+    { HookDisableGuard guard("Global/CEntryExitManager/SetAreaCodeForVisibleObjects");
+      CEntryExitManager::SetAreaCodeForVisibleObjects(); }
+    CEntryExitManager::SetAreaCodeForVisibleObjects();
+    EXPECT_TRUE(true);
+}

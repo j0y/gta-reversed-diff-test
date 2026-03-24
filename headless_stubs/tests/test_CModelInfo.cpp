@@ -51,3 +51,43 @@ GAME_DIFF_TEST(CModelInfo, IsVehicleModelType) {
         EXPECT_EQ(orig, rev);
     }
 }
+
+// --- GetModelInfoFromHashKey sweep ---
+// Tests hash-to-model-info lookup across known model name hashes.
+
+GAME_DIFF_TEST(CModelInfo, GetModelInfoFromHashKey_Sweep) {
+    // Hash a bunch of known model names and look them up
+    const char* names[] = {
+        "landstal", "bravura", "buffalo", "linerun", "perennial",
+        "sentinel", "dumper", "firetruck", "trashmaster", "stretch",
+        "manana", "infernus", "voodoo", "pony", "mule",
+        "cheetah", "ambulance", "fbiranch", "moonbeam", "esperanto",
+        "taxi", "washington", "bobcat", "mrwhoop", "bfinject",
+        "police", "enforcer", "securicar", "banshee", "predator",
+    };
+    for (auto* name : names) {
+        uint32 hash = CKeyGen::GetKey(name);
+        CBaseModelInfo* orig;
+        CBaseModelInfo* rev;
+        { HookDisableGuard guard("Models/CModelInfo/GetModelInfoFromHashKey");
+          orig = CModelInfo::GetModelInfoFromHashKey(hash, nullptr); }
+        rev = CModelInfo::GetModelInfoFromHashKey(hash, nullptr);
+        EXPECT_EQ(orig, rev);
+    }
+}
+
+// --- GetModelInfoUInt16 (takes name + out uint16*) ---
+
+GAME_DIFF_TEST(CModelInfo, GetModelInfoUInt16_ByName) {
+    const char* names[] = { "infernus", "cheetah", "buffalo", "police", "taxi" };
+    for (auto* name : names) {
+        uint16 origId = 0, revId = 0;
+        CBaseModelInfo* orig;
+        CBaseModelInfo* rev;
+        { HookDisableGuard guard("Models/CModelInfo/GetModelInfoUInt16");
+          orig = CModelInfo::GetModelInfoUInt16(name, &origId); }
+        rev = CModelInfo::GetModelInfoUInt16(name, &revId);
+        EXPECT_EQ(orig, rev);
+        EXPECT_EQ(origId, revId);
+    }
+}

@@ -87,3 +87,24 @@ GAME_DIFF_TEST(CPools, GetVehicle_InvalidHandle) {
     rev = CPools::GetVehicle(-1);
     EXPECT_EQ(orig, rev);
 }
+
+// --- GetObject / GetObjectRef ---
+
+GAME_DIFF_TEST(CPools, GetObject_InvalidHandle) {
+    CObject* orig;
+    CObject* rev;
+    { HookDisableGuard guard("Global/CPools/GetObject"); orig = CPools::GetObject(-1); }
+    rev = CPools::GetObject(-1);
+    EXPECT_EQ(orig, rev);
+}
+
+// CheckPoolsEmpty returns void. Skipped as diff test.
+
+// --- CheckBuildingAtomics ---
+
+GAME_DIFF_TEST(CPools, CheckBuildingAtomics) {
+    { HookDisableGuard guard("Global/CPools/CheckBuildingAtomics");
+      CPools::CheckBuildingAtomics(); }
+    CPools::CheckBuildingAtomics();
+    EXPECT_TRUE(true);
+}

@@ -45,3 +45,48 @@ GAME_DIFF_TEST(CWeaponInfo, FindWeaponType_ExtendedNames) {
         EXPECT_EQ(orig, rev);
     }
 }
+
+// --- GetWeaponReloadTime ---
+
+GAME_DIFF_TEST(CWeaponInfo, GetWeaponReloadTime) {
+    eWeaponType weapons[] = { WEAPON_PISTOL, WEAPON_SHOTGUN, WEAPON_AK47, WEAPON_M4, WEAPON_MICRO_UZI };
+    for (auto wt : weapons) {
+        auto* info = CWeaponInfo::GetWeaponInfo(wt, eWeaponSkill::STD);
+        if (!info) continue;
+        float orig, rev;
+        { HookDisableGuard guard("Global/CWeaponInfo/GetWeaponReloadTime");
+          orig = info->GetWeaponReloadTime(); }
+        rev = info->GetWeaponReloadTime();
+        EXPECT_NEAR(orig, rev, 1e-5f);
+    }
+}
+
+// --- GetTargetHeadRange ---
+
+GAME_DIFF_TEST(CWeaponInfo, GetTargetHeadRange) {
+    eWeaponType weapons[] = { WEAPON_PISTOL, WEAPON_AK47, WEAPON_SNIPERRIFLE };
+    for (auto wt : weapons) {
+        auto* info = CWeaponInfo::GetWeaponInfo(wt, eWeaponSkill::STD);
+        if (!info) continue;
+        float orig, rev;
+        { HookDisableGuard guard("Global/CWeaponInfo/GetTargetHeadRange");
+          orig = info->GetTargetHeadRange(); }
+        rev = info->GetTargetHeadRange();
+        EXPECT_NEAR(orig, rev, 1e-5f);
+    }
+}
+
+// --- GetCrouchReloadAnimationID ---
+
+GAME_DIFF_TEST(CWeaponInfo, GetCrouchReloadAnimationID) {
+    eWeaponType weapons[] = { WEAPON_PISTOL, WEAPON_SHOTGUN, WEAPON_AK47 };
+    for (auto wt : weapons) {
+        auto* info = CWeaponInfo::GetWeaponInfo(wt, eWeaponSkill::STD);
+        if (!info) continue;
+        int32 orig, rev;
+        { HookDisableGuard guard("Global/CWeaponInfo/GetCrouchReloadAnimationID");
+          orig = (int32)info->GetCrouchReloadAnimationID(); }
+        rev = (int32)info->GetCrouchReloadAnimationID();
+        EXPECT_EQ(orig, rev);
+    }
+}

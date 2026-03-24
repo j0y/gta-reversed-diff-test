@@ -121,6 +121,63 @@ GAME_DIFF_TEST(CDamageManager, GetCarNodeIndexFromPanel) {
     }
 }
 
+// --- Set/Get wheel status round-trip ---
+
+GAME_DIFF_TEST(CDamageManager, SetGetWheelStatus) {
+    auto* car = GetDmgAuto();
+    if (!car) return;
+    auto& dmg = car->m_damageManager;
+    eCarWheel wheels[] = { CAR_WHEEL_FRONT_LEFT, CAR_WHEEL_REAR_LEFT, CAR_WHEEL_FRONT_RIGHT, CAR_WHEEL_REAR_RIGHT };
+    for (auto w : wheels) {
+        auto saved = dmg.GetWheelStatus(w);
+        { HookDisableGuard guard("Global/CDamageManager/SetWheelStatus");
+          dmg.SetWheelStatus(w, eCarWheelStatus::WHEEL_STATUS_OK); }
+        auto origVal = (int32)dmg.GetWheelStatus(w);
+
+        dmg.SetWheelStatus(w, saved);
+        dmg.SetWheelStatus(w, eCarWheelStatus::WHEEL_STATUS_OK);
+        auto revVal = (int32)dmg.GetWheelStatus(w);
+
+        EXPECT_EQ(origVal, revVal);
+        dmg.SetWheelStatus(w, saved);
+    }
+}
+
+// --- GetAeroplaneCompStatus ---
+
+GAME_DIFF_TEST(CDamageManager, GetAeroplaneCompStatus) {
+    auto* car = GetDmgAuto();
+    if (!car) return;
+    auto& dmg = car->m_damageManager;
+    for (int32 comp = 0; comp < 4; comp++) {
+        int32 orig, rev;
+        { HookDisableGuard guard("Global/CDamageManager/GetAeroplaneCompStatus");
+          orig = (int32)dmg.GetAeroplaneCompStatus(comp); }
+        rev = (int32)dmg.GetAeroplaneCompStatus(comp);
+        EXPECT_EQ(orig, rev);
+    }
+}
+
+// --- SetEngineStatus ---
+
+GAME_DIFF_TEST(CDamageManager, SetEngineStatus) {
+    auto* car = GetDmgAuto();
+    if (!car) return;
+    auto& dmg = car->m_damageManager;
+    auto saved = dmg.GetEngineStatus();
+
+    { HookDisableGuard guard("Global/CDamageManager/SetEngineStatus");
+      dmg.SetEngineStatus(200); }
+    auto origVal = dmg.GetEngineStatus();
+
+    dmg.SetEngineStatus(saved);
+    dmg.SetEngineStatus(200);
+    auto revVal = dmg.GetEngineStatus();
+
+    EXPECT_EQ(origVal, revVal);
+    dmg.SetEngineStatus(saved);
+}
+
 GAME_DIFF_TEST(CDamageManager, GetComponentGroup) {
     for (uint8 comp = 0; comp < 20; comp++) {
         tComponentGroup groupOrig{}, groupRev{};

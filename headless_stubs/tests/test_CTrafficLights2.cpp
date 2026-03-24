@@ -29,3 +29,5 @@ GAME_DIFF_TEST(CTrafficLights, IsMITrafficLight_Various) {
 }
 
 // FindTrafficLightType takes CEntity* — skip (need real entity)
+
+// ShouldCarStopForBridge/FindOrientation/FindType take complex args or are private. Skipped.

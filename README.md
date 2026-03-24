@@ -7,7 +7,7 @@ Headless Linux testing infrastructure for [gta-reversed](https://github.com/gta-
 1. **Builds** `gta_reversed.asi` on Linux with the real MSVC compiler running under Wine
 2. **Runs** GTA:SA headlessly — null D3D9 device, null audio, virtual framebuffer
 3. **Tests** reversed functions by toggling hooks at runtime and comparing original vs reversed behavior
-4. **Reports** bugs found by differential testing (38 confirmed bugs so far across 1845 tests)
+4. **Reports** bugs found by differential testing (44 confirmed bugs so far across 2095 tests)
 
 ## Quick Start
 
@@ -51,15 +51,14 @@ Output: `build-output/gta_reversed.asi` (~22MB) and `build-output/d3d9.dll` (~24
 ### Run tests
 
 ```bash
-# Scenario tests (1845 tests, ~32000 assertions)
+# Scenario tests (1914 tests, ~33000 assertions)
 ./scripts/docker-build.sh build-tests   # Incremental rebuild (~6s)
-./scripts/run.sh test                    # Run full test suite
+./scripts/run.sh test                    # Run full test suite (600s)
+./scripts/run.sh test CVector            # Run one class (120s)
+./scripts/run.sh test CVector,CPed,CVehicle3  # Run multiple classes (120s)
 
 # Differential hash test
 ./scripts/run.sh diff                    # Multi-run differential testing
-
-# Filtered tests (faster iteration)
-GAME_TEST_FILTER=CStreaming ./scripts/run.sh test
 ```
 
 ## Architecture
@@ -105,7 +104,7 @@ Test harness (inside .asi at game state 9):
 │   ├── differential_test.cpp   # Hash-based differential testing
 │   ├── headless_render_stubs.cpp
 │   ├── soak_test.cpp
-│   └── tests/                  # Per-class test files (293 files, auto-discovered)
+│   └── tests/                  # Per-class test files (350 files, auto-discovered)
 ├── null_d3d9/                  # Null D3D9 stub (all 11 COM interfaces)
 ├── test_asi/                   # Minimal test ASI for pipeline debugging
 ├── patches/                    # Build-time patches for gta-reversed
@@ -131,7 +130,7 @@ Test harness (inside .asi at game state 9):
 
 ## Test Results
 
-1845 tests across ~150 classes with ~32,000 assertions. 38 confirmed bugs found in gta-reversed via differential testing, including:
+2095 tests across ~180 classes with ~36,000 assertions. 44 confirmed bugs found in gta-reversed via differential testing, including:
 
 - Wrong array dimensions (`CVehicleModelInfo::GetWheelUpgrade`)
 - Wrong memory addresses (`CGangs::GetWillAttackPlayerWithCops`)
@@ -148,7 +147,12 @@ Test harness (inside .asi at game state 9):
 - Wrong newline parsing (`CMessages::CutString`)
 - Wrong pickup text lookup (`CPickup::FindStringForTextIndex`)
 - Wrong ped hold object (`CPedGroupMembership::GetObjectForPedToHold`)
-- Wrong recording file index (`CVehicleRecording::RegisterRecordingFile`)
+- Wrong HUD colour packing (`CHudColours::GetIntColour`)
+- Wrong zone label lookup (`CTheZones::FindZoneByLabel`)
+- Wrong zone distance formula (`CTheZones::Calc2DDistanceBetween2Zones`)
+- Wrong pathfinding node selection (`CPathFind::FindNodeClosestToCoorsFavourDirection`)
+- Wrong IK chain acceptance (`IKChainManager_c::CanAcceptLookAt`)
+- Wrong cab driver model (`CStreaming::GetDefaultCabDriverModel`)
 
 Full details in [phase4-results.md](phase4-results.md).
 
@@ -173,7 +177,7 @@ Full details in [phase4-results.md](phase4-results.md).
 | **2**: Headless Bootstrap | Done | Game reaches state 9 (IDLE), 24 blockers fixed |
 | **3**: RW Render Stubs | Done | Rendering no-oped, game logic runs at full speed |
 | **4**: Differential Harness | Done | Deterministic baselines, 29 categories tested |
-| **4b**: Scenario Tests | Done | 1845 tests, ~150 classes, 38 bugs found |
+| **4b**: Scenario Tests | Done | See [phase4-results.md](phase4-results.md) for current counts |
 | **5**: CI Pipeline | Not started | GitHub Actions with self-hosted runner |
 
 ## License

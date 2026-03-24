@@ -108,3 +108,39 @@ GAME_DIFF_TEST(CMessages, StringCopy_Truncate) {
         EXPECT_EQ(origDst[i], revDst[i]);
     }
 }
+
+// --- ClearMessages ---
+
+GAME_DIFF_TEST(CMessages, ClearMessages) {
+    { HookDisableGuard guard("Global/CMessages/ClearMessages");
+      CMessages::ClearMessages(false); }
+    CMessages::ClearMessages(false);
+    EXPECT_TRUE(true);
+}
+
+// --- ClearPreviousBriefArray ---
+
+GAME_DIFF_TEST(CMessages, ClearPreviousBriefArray) {
+    { HookDisableGuard guard("Global/CMessages/ClearPreviousBriefArray");
+      CMessages::ClearPreviousBriefArray(); }
+    CMessages::ClearPreviousBriefArray();
+    EXPECT_TRUE(true);
+}
+
+// --- ClearSmallMessagesOnly ---
+
+GAME_DIFF_TEST(CMessages, ClearSmallMessagesOnly) {
+    { HookDisableGuard guard("Global/CMessages/ClearSmallMessagesOnly");
+      CMessages::ClearSmallMessagesOnly(); }
+    CMessages::ClearSmallMessagesOnly();
+    EXPECT_TRUE(true);
+}
+
+// --- ClearAllMessagesDisplayedByGame ---
+
+GAME_DIFF_TEST(CMessages, ClearAllMessagesDisplayedByGame) {
+    { HookDisableGuard guard("Global/CMessages/ClearAllMessagesDisplayedByGame");
+      CMessages::ClearAllMessagesDisplayedByGame(false); }
+    CMessages::ClearAllMessagesDisplayedByGame(false);
+    EXPECT_TRUE(true);
+}

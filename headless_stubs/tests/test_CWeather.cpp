@@ -71,3 +71,35 @@ GAME_DIFF_TEST(CWeather, ReleaseWeather) {
     CWeather::ForcedWeatherType = saved;
     EXPECT_EQ(origVal, revVal);
 }
+
+// --- SetWeatherToAppropriateTypeNow ---
+
+GAME_DIFF_TEST(CWeather, SetWeatherToAppropriateTypeNow) {
+    auto savedOld = CWeather::OldWeatherType;
+    auto savedNew = CWeather::NewWeatherType;
+
+    { HookDisableGuard guard("Global/CWeather/SetWeatherToAppropriateTypeNow");
+      CWeather::SetWeatherToAppropriateTypeNow(); }
+    auto origOld = CWeather::OldWeatherType;
+    auto origNew = CWeather::NewWeatherType;
+
+    CWeather::OldWeatherType = savedOld;
+    CWeather::NewWeatherType = savedNew;
+    CWeather::SetWeatherToAppropriateTypeNow();
+    auto revOld = CWeather::OldWeatherType;
+    auto revNew = CWeather::NewWeatherType;
+
+    EXPECT_EQ(origOld, revOld);
+    EXPECT_EQ(origNew, revNew);
+
+    CWeather::OldWeatherType = savedOld;
+    CWeather::NewWeatherType = savedNew;
+}
+
+// --- FindWeatherTypesList ---
+
+GAME_DIFF_TEST(CWeather, FindWeatherTypesList) {
+    auto* orig = CWeather::FindWeatherTypesList();
+    auto* rev = CWeather::FindWeatherTypesList();
+    EXPECT_EQ(orig, rev);
+}

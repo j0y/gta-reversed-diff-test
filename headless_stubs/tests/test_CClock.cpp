@@ -70,3 +70,68 @@ GAME_DIFF_TEST(CClock, NormaliseGameClock) {
     CClock::ms_nGameClockMinutes = savedM;
     CClock::ms_nGameClockDays = savedD;
 }
+
+// --- StoreClock / RestoreClock round-trip ---
+
+GAME_DIFF_TEST(CClock, StoreClock_RestoreClock) {
+    auto savedH = CClock::ms_nGameClockHours;
+    auto savedM = CClock::ms_nGameClockMinutes;
+
+    // Store via original
+    { HookDisableGuard guard("Global/CClock/StoreClock");
+      CClock::StoreClock(); }
+
+    // Change clock
+    CClock::ms_nGameClockHours = 12;
+    CClock::ms_nGameClockMinutes = 30;
+
+    // Restore via original
+    { HookDisableGuard guard("Global/CClock/RestoreClock");
+      CClock::RestoreClock(); }
+    auto origH = CClock::ms_nGameClockHours;
+    auto origM = CClock::ms_nGameClockMinutes;
+
+    // Now do the same with reversed code
+    CClock::ms_nGameClockHours = savedH;
+    CClock::ms_nGameClockMinutes = savedM;
+    CClock::StoreClock();
+    CClock::ms_nGameClockHours = 12;
+    CClock::ms_nGameClockMinutes = 30;
+    CClock::RestoreClock();
+    auto revH = CClock::ms_nGameClockHours;
+    auto revM = CClock::ms_nGameClockMinutes;
+
+    EXPECT_EQ(origH, revH);
+    EXPECT_EQ(origM, revM);
+
+    // Final restore
+    CClock::ms_nGameClockHours = savedH;
+    CClock::ms_nGameClockMinutes = savedM;
+}
+
+// --- SetGameClock ---
+
+GAME_DIFF_TEST(CClock, SetGameClock) {
+    auto savedH = CClock::ms_nGameClockHours;
+    auto savedM = CClock::ms_nGameClockMinutes;
+    auto savedD = CClock::ms_nGameClockDays;
+
+    { HookDisableGuard guard("Global/CClock/SetGameClock");
+      CClock::SetGameClock(15, 45, 5); }
+    auto origH = CClock::ms_nGameClockHours;
+    auto origM = CClock::ms_nGameClockMinutes;
+
+    CClock::ms_nGameClockHours = savedH;
+    CClock::ms_nGameClockMinutes = savedM;
+    CClock::ms_nGameClockDays = savedD;
+    CClock::SetGameClock(15, 45, 5);
+    auto revH = CClock::ms_nGameClockHours;
+    auto revM = CClock::ms_nGameClockMinutes;
+
+    EXPECT_EQ(origH, revH);
+    EXPECT_EQ(origM, revM);
+
+    CClock::ms_nGameClockHours = savedH;
+    CClock::ms_nGameClockMinutes = savedM;
+    CClock::ms_nGameClockDays = savedD;
+}

@@ -79,6 +79,47 @@ GAME_TEST(CRect, SizeValidation) {
     EXPECT_EQ(sizeof(CRect), (size_t)0x10);
 }
 
+// --- Differential tests for overloaded hooks ---
+
+GAME_DIFF_TEST(CRect, IsPointInside_Diff) {
+    CRect rect(0.f, 0.f, 100.f, 100.f);
+    CVector2D points[] = { {50.f,50.f}, {0.f,0.f}, {100.f,100.f}, {-1.f,50.f}, {50.f,101.f} };
+    for (auto& pt : points) {
+        bool orig, rev;
+        { HookDisableGuard guard("Global/CRect/IsPointInside-");
+          orig = rect.IsPointInside(pt); }
+        rev = rect.IsPointInside(pt);
+        EXPECT_EQ(orig, rev);
+    }
+}
+
+GAME_DIFF_TEST(CRect, IsPointInside_Tolerance_Diff) {
+    CRect rect(0.f, 0.f, 100.f, 100.f);
+    CVector2D points[] = { {-5.f,50.f}, {50.f,-5.f}, {105.f,50.f}, {50.f,105.f} };
+    for (auto& pt : points) {
+        bool orig, rev;
+        { HookDisableGuard guard("Global/CRect/IsPointInside-Tolerance");
+          orig = rect.IsPointInside(pt, 10.f); }
+        rev = rect.IsPointInside(pt, 10.f);
+        EXPECT_EQ(orig, rev);
+    }
+}
+
+// Resize takes different args. Skipped.
+
+GAME_DIFF_TEST(CRect, Restrict_Diff) {
+    CRect rect(10.f, 10.f, 50.f, 50.f);
+    CRect bounds(0.f, 0.f, 40.f, 40.f);
+    CRect origRect = rect, revRect = rect;
+    { HookDisableGuard guard("Global/CRect/Restrict");
+      origRect.Restrict(bounds); }
+    revRect.Restrict(bounds);
+    EXPECT_NEAR(origRect.left, revRect.left, 1e-5f);
+    EXPECT_NEAR(origRect.right, revRect.right, 1e-5f);
+    EXPECT_NEAR(origRect.top, revRect.top, 1e-5f);
+    EXPECT_NEAR(origRect.bottom, revRect.bottom, 1e-5f);
+}
+
 GAME_TEST(CRect, StretchToPoint) {
     CRect rect(10.0f, 10.0f, 20.0f, 20.0f);
     rect.StretchToPoint(25.0f, 5.0f);

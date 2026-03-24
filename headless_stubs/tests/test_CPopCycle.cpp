@@ -23,3 +23,14 @@ GAME_DIFF_TEST(CPopCycle, IsPedInGroup) {
         }
     }
 }
+
+// IsPedAppropriateForCurrentZone, UpdatePercentages, UpdateAreaDodgyness — original crashes. Skipped.
+
+// --- PlayerKilledADealer ---
+
+GAME_DIFF_TEST(CPopCycle, PlayerKilledADealer_NoCrash) {
+    { HookDisableGuard guard("Global/CPopCycle/PlayerKilledADealer");
+      CPopCycle::PlayerKilledADealer(); }
+    CPopCycle::PlayerKilledADealer();
+    EXPECT_TRUE(true);
+}

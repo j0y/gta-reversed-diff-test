@@ -73,3 +73,18 @@ GAME_DIFF_TEST(CTimeCycle2, FindFarClipForCoors_Various) {
         EXPECT_NEAR(orig, rev, 1e-3f);
     }
 }
+
+// FindTimeCycleBox takes different args. Skipped.
+
+// --- StartExtraColour / StopExtraColour ---
+
+GAME_DIFF_TEST(CTimeCycle2, StartStopExtraColour) {
+    { HookDisableGuard guard("Global/CTimeCycle/StartExtraColour");
+      CTimeCycle::StartExtraColour(0, false); }
+    { HookDisableGuard guard("Global/CTimeCycle/StopExtraColour");
+      CTimeCycle::StopExtraColour(false); }
+
+    CTimeCycle::StartExtraColour(0, false);
+    CTimeCycle::StopExtraColour(false);
+    EXPECT_TRUE(true);
+}

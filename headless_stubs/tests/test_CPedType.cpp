@@ -46,3 +46,17 @@ GAME_DIFF_TEST(CPedType, PoliceDontCareAboutCrimesAgainstPedType) {
         EXPECT_EQ(orig, rev);
     }
 }
+
+// --- GetPedTypeAcquaintances FULL SWEEP (32 types × 5 acquaintance IDs = 160) ---
+
+GAME_DIFF_TEST(CPedType, GetPedTypeAcquaintances_FullSweep) {
+    for (int32 type = 0; type < 32; type++) {
+        for (int32 acqId = 0; acqId < 5; acqId++) {
+            uint32 orig, rev;
+            { HookDisableGuard guard("Global/CPedType/GetPedTypeAcquaintances-uint32");
+              orig = CPedType::GetPedTypeAcquaintances(acqId, static_cast<ePedType>(type)); }
+            rev = CPedType::GetPedTypeAcquaintances(acqId, static_cast<ePedType>(type));
+            EXPECT_EQ(orig, rev);
+        }
+    }
+}

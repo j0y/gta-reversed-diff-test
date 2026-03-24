@@ -6,7 +6,7 @@ Compares game behavior with reversed hooks enabled vs disabled by hashing observ
 
 All test modes work end-to-end:
 - **Differential hash test** — deterministic baselines, all-disabled produces distinct hash, 29 categories tested
-- **Scenario tests (Phase 4b)** — 1845 tests, ~32000 assertions, ~150 classes, 38 bugs found
+- **Scenario tests (Phase 4b)** — 2095 tests, ~36000 assertions, ~180 classes, 44 bugs found
 - hooks.csv (7994 hooks) and hooks_paths.csv (718 paths) collected automatically
 
 ## Architecture
@@ -308,7 +308,7 @@ GAME_DIFF_TEST(CGeneral, SolveQuadratic) {
 
 Hook paths are from `hooks_paths.csv` (e.g., `"Global/CGeneral/LimitAngle"`).
 
-### Current Test Suite: 1845 tests, ~32000 assertions, ~150 classes
+### Current Test Suite: 2095 tests, ~36000 assertions, ~180 classes
 
 **Behavior tests (19):**
 - CVector: Constructor_Default, Constructor_XYZ, Magnitude_345, Magnitude_Zero, Normalise_UnitLength, Normalise_AlreadyUnit, Addition, Subtraction, ScalarMultiply, Magnitude2D
@@ -413,7 +413,17 @@ The reversed code (Maths.cpp) overwrites the original sin lookup table at `0xBB3
 | Streamed vehicles (2026-03-20) | 41 | | CVehicle queries on streamed bike/boat/heli/plane/bmx/trailer |
 | Ped-in-vehicle-types (2026-03-20) | 19 | | CanPedStepOutCar, CCarEnterExit door/health/steal across types |
 | Damage across types (2026-03-20) | 9 | | Health thresholds, weapon matrix, lights on 5 vehicle types |
-| **Total tested** | **765** | **~8000** | |
+| Tier 1 — new (2026-03-24) | 30 | | CHudColours, CTheZones (extended), CColStore, COcclusion, CPedStats, CWaterLevel |
+| Tier 2 — new (2026-03-24) | 22 | | CPed2 (IsPointerValid, OurPedCanSeeThisEntity), CPhysical3 (ApplyGravity, SkipPhysics) |
+| Tier 3 — new (2026-03-24) | 17 | | CVehicle3 (12 queries incl. GetPlaneNumGuns), InteriorManager (5 queries) |
+| Global — new (2026-03-24) | 4 | | CPathFind3, CAccidentManager2, CShotInfo2 |
+| Sret direct-call (2026-03-24) | 12 | | CRadar transforms (CVector2D), CVehicle gun positions (CVector), CPed bones |
+| Overloaded hooks (2026-03-24) | 27 | | IsPassenger/IsDriver-Ped/-ModelID, GetZoneInfo-, GetWaterLevel-, FindTxdSlot-name, GetKey, GetModelInfo, GetWeaponSkill, etc. |
+| New classes (2026-03-24) | 8 | | CCranes, CRoadBlocks, CEscalators, CPlaneTrails, CPlane (zone queries) |
+| Physics mutation (2026-03-24) | 15 | | ApplyForce, ApplyTurnForce, ApplyMoveSpeed, ApplyFrictionMoveForce on spawned vehicles |
+| Deep queries (2026-03-24) | 65 | | CPedIntelligence (15 task+friend queries), CPlayerPed (6), CTheScripts (5), CStreaming (11), CCamera (9), CEntity (9), CVehicle (18+), CWorld (9) |
+| New classes (2026-03-24) | 12 | | CVisibilityPlugins, CCutsceneMgr, CIplStore, CGroupEventHandler, CAnimManager, CTxdStore, CPopulation (extended), CExplosion, CFireManager |
+| **Total tested** | **~1100** | **~8000** | |
 
 ### File Structure
 
@@ -522,7 +532,21 @@ headless_stubs/
 │   ├── test_CWeaponInfo.cpp   # 1 diff test
 │   ├── test_CWeather.cpp      # 4 diff tests
 │   ├── test_CWorld.cpp        # 5 diff tests (ground/roof Z, line of sight)
-│   └── test_SurfaceInfos.cpp  # 49 tests — all 50 accessors across 179 surface IDs (~8000 assertions)
+│   ├── test_SurfaceInfos.cpp  # 49 tests — all 50 accessors across 179 surface IDs (~8000 assertions)
+│   ├── test_CHudColours.cpp       # 3 diff tests — GetIntColour/GetRGB/GetRGBA across 20 indices (1 bug found)
+│   ├── test_CTheZones2.cpp        # 10 diff tests — FindZoneByLabel, FindSmallestZone, zone geometry (2 bugs found)
+│   ├── test_CTheZones3.cpp        # 2 behavior tests — GetZoneInfo (overloaded hook, can't diff)
+│   ├── test_CColStore2.cpp        # 2 diff tests — HasCollisionLoaded, GetBoundingBox
+│   ├── test_COcclusion2.cpp       # 3 diff tests — IsPositionOccluded radius/grid sweep, OccluderHidesBehind
+│   ├── test_CAccidentManager2.cpp # 4 diff tests — GetNearestFreeAccident multi-position
+│   ├── test_CShotInfo2.cpp        # 1 diff test — GetFlameThrowerShotPosn all 100 slots
+│   ├── test_CPhysical3.cpp        # 5 diff tests — ApplyGravity, SkipPhysics on player + vehicle
+│   ├── test_CVehicle3.cpp         # 12 diff tests — GetRemapIndex, CanBeDeleted, IsUpsideDown, GetPlaneNumGuns, etc.
+│   ├── test_CPed2.cpp             # 12 diff tests — IsPointerValid, IsPedInControl, OurPedCanSeeThisEntity on player + NPC
+│   ├── test_CPathFind3.cpp        # 4 diff tests — FindNodeClosestToCoorsFavourDirection (1 bug found)
+│   ├── test_CPedStats3.cpp        # 3 diff tests — GetPedStatType across 26 names
+│   ├── test_CWaterLevel2.cpp      # 4 behavior tests — GetWaterLevel at ocean/inland positions
+│   └── test_InteriorManager.cpp   # 5 diff tests — IsGroupActive, GetPedsInterior, GetVectorsInterior
 ├── soak_test.cpp              # Env var dispatch (DIFF_TEST/GAME_TEST/soak)
 ├── differential_test.cpp      # Phase 4 hash-based differential testing
 └── headless_render_stubs.cpp  # Frame callback injection
@@ -547,7 +571,7 @@ docker run --rm \
 
 ## Bugs Found in gta-reversed
 
-37 confirmed bugs found by differential testing. Each was discovered by calling the same function with hooks enabled (reversed code) vs disabled (original code) and comparing results.
+44 confirmed bugs found by differential testing. Each was discovered by calling the same function with hooks enabled (reversed code) vs disabled (original code) and comparing results.
 
 | # | Function | Bug |
 |---|---|---|
@@ -588,6 +612,12 @@ docker run --rm \
 | 35 | `CMessages::CutString` | Function body entirely missing — `NOTSA_UNREACHABLE()` stub, wrongly marked "unused" but hook is registered. |
 | 36 | `CPickup::FindStringForTextIndex` | `ePickupPropertyText` enum is 0-based but original uses 1-based indexing (`dec eax; je`). All indices off by one. Confirmed by disassembly at `0x455540`. |
 | 37 | `CPedGroupMembership::GetObjectForPedToHold` | Wrong item order (`SMOKE, INVALID, DRINK` should be `SMOKE, DRINK, INVALID`), wrong RNG method (`RandomChoiceFromList` vs percentage thresholds). Confirmed by disassembly at `0x5F6950`. |
+| 38 | `CHudColours::GetIntColour` | Returns different packed uint32 RGBA than original at `0x58FD50` for some HUD colour indices. `GetRGB`/`GetRGBA` (which return `CRGBA` struct) are correct — only the integer packing diverges. |
+| 39 | `CTheZones::FindZoneByLabel` | Returns different zone index than original at `0x572C40` for some navigation zone labels. Info zone lookups are correct. |
+| 40 | `CTheZones::Calc2DDistanceBetween2Zones` | Significantly wrong distance — returns 805 where original at `0x5725B0` returns 242 for the same zone pair. Likely using wrong zone fields (center vs corner) or wrong distance formula. |
+| 41 | `CPathFind::FindNodeClosestToCoorsFavourDirection` | Returns different node ID than original at `0x44FCE0` for same position and direction. Node area matches but node index diverges — likely wrong tie-breaking or distance comparison in the direction-favouring logic. |
+| 42 | `IKChainManager_c::CanAcceptLookAt` | Returns different result than original at `0x6188B0` when querying whether a ped can accept a look-at IK chain. |
+| 43 | `CStreaming::GetDefaultCabDriverModel` | Returns different model ID than original. Uses RNG internally — reversed code likely has different RNG call sequence or range. |
 
 **Not a bug — false positives confirmed by disassembly:**
 - `CRadar::TransformRadarPointToScreenSpace` — divergence caused by `sret` calling convention issue in test infrastructure, not a reversal bug.
@@ -647,7 +677,12 @@ __asm {
 
 - **Streaming I/O** — works in headless mode, but tests must use `ResumeThreadsGuard` to unfreeze the CdStream worker (test runner suspends all threads via `SuspendOtherThreads`). At state 9: 1 vehicle loaded, 211 unloaded with CD data, 3 peds loaded, 7 IMG files open, ~35MB memory headroom.
 - **Deleted test files persist in Docker volume** — `build-tests.sh` doesn't sync deletions. Remove manually: `docker run --rm -v gta-build-tree:/tmp/gta-build gta-reversed-build rm /tmp/gta-build/source/test_Foo.cpp` then full rebuild.
-- **Test timeout** — 600s needed for full 1841-test suite (~0.3s/test due to hook toggling overhead). Use `GAME_TEST_FILTER` for faster iteration.
+- **New test files require full rebuild** — The `build-tests` incremental command only recompiles existing unity TUs. New files need `docker volume rm gta-build-tree && ./scripts/docker-build.sh build` to regenerate the unity layout and cmake configuration. After full rebuild, new tests register and run correctly (verified: all `.CRT$XCU` initializers execute under Wine).
+- **Some cheats crash headlessly** — `FatCheat`, `MuscleCheat`, `ParachuteCheat` modify the player model (needs RenderWare clump operations). `EverybodyAttacksPlayerCheat`, `MayhemCheat` trigger AI that crashes without rendering. Only flag-toggle cheats (weather, time, BlackCars, Driveby, NotWanted) are safe.
+- **Test timeout** — 600s needed for full 1914-test suite (~0.3s/test due to hook toggling overhead). Use `GAME_TEST_FILTER` for faster iteration.
+- **Comma-separated filter** — `GAME_TEST_FILTER` now accepts comma-separated class names (e.g., `CVector,CPed2,CVehicle3`). OR logic: a test runs if any token matches its `Class/Name`. Useful for running multiple new test files in a single launch instead of one-at-a-time.
+- **`run.sh test`** — `./scripts/run.sh test [filter]` handles all Docker mounts, env vars, and result display. No need to type the full `docker run` command. `./scripts/run.sh test` for full suite, `./scripts/run.sh test CVector,CPed2` for filtered.
+- **Overloaded hook paths** — functions registered via `RH_ScopedOverloadedInstall` (e.g., `CTheZones::GetZoneInfo`, `CWaterLevel::GetWaterLevel`) have hook paths that include an empty suffix and can't be found by `HookDisableGuard`. Test these as behavior tests only, or use the overload's distinguishing name if one was provided.
 
 ## Next Steps
 

@@ -97,17 +97,41 @@ void GameTestRunnerOnFrame() {
         TestLog("TOTAL_TESTS=%d", total);
         TestLog("");
 
-        // GAME_TEST_FILTER: if set, only run tests whose "Class/Name" contains this substring
+        // GAME_TEST_FILTER: comma-separated list of substrings to match against "Class/Name".
+        // A test runs if ANY token matches (OR logic). Single token works as before.
+        // Examples:
+        //   GAME_TEST_FILTER=CVector                       (single class)
+        //   GAME_TEST_FILTER=CVector,CGeneral,CPed2        (multiple classes)
+        //   GAME_TEST_FILTER=CVector/Magnitude             (specific test)
         const char* filter = getenv("GAME_TEST_FILTER");
         int skipped = 0;
 
+        // Pre-parse comma-separated filter tokens (max 64)
+        const char* filterTokens[64] = {};
+        char filterBuf[1024] = {};
+        int numTokens = 0;
+        if (filter && filter[0]) {
+            strncpy(filterBuf, filter, sizeof(filterBuf) - 1);
+            char* tok = strtok(filterBuf, ",");
+            while (tok && numTokens < 64) {
+                // Trim leading spaces
+                while (*tok == ' ') tok++;
+                if (*tok) filterTokens[numTokens++] = tok;
+                tok = strtok(nullptr, ",");
+            }
+        }
+
         for (auto& test : tests) {
-            // Apply filter
-            if (filter && filter[0]) {
+            // Apply filter — test runs if any token matches
+            if (numTokens > 0) {
                 char fullName[256];
                 _snprintf(fullName, sizeof(fullName), "%s/%s", test.className, test.testName);
                 fullName[sizeof(fullName) - 1] = '\0';
-                if (!strstr(fullName, filter)) {
+                bool matched = false;
+                for (int t = 0; t < numTokens; t++) {
+                    if (strstr(fullName, filterTokens[t])) { matched = true; break; }
+                }
+                if (!matched) {
                     skipped++;
                     continue;
                 }

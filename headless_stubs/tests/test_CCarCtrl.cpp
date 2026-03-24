@@ -32,3 +32,40 @@ GAME_DIFF_TEST(CCarCtrl, ChooseGangCarModel) {
         EXPECT_EQ((int)orig, (int)rev);
     }
 }
+
+// --- ChoosePoliceCarModel FULL SWEEP (all wanted levels 0-6) ---
+
+GAME_DIFF_TEST(CCarCtrl, ChoosePoliceCarModel_AllLevels) {
+    for (uint32 level = 0; level <= 6; level++) {
+        int32 orig, rev;
+        { HookDisableGuard guard("Global/CCarCtrl/ChoosePoliceCarModel");
+          orig = CCarCtrl::ChoosePoliceCarModel(level); }
+        rev = CCarCtrl::ChoosePoliceCarModel(level);
+        EXPECT_EQ(orig, rev);
+    }
+}
+
+// --- ChooseGangCarModel ALL GANGS ---
+
+GAME_DIFF_TEST(CCarCtrl, ChooseGangCarModel_AllGangs) {
+    for (int32 gang = 0; gang < 10; gang++) {
+        eModelID orig, rev;
+        { HookDisableGuard guard("Global/CCarCtrl/ChooseGangCarModel");
+          orig = CCarCtrl::ChooseGangCarModel(static_cast<eGangID>(gang)); }
+        rev = CCarCtrl::ChooseGangCarModel(static_cast<eGangID>(gang));
+        EXPECT_EQ((int)orig, (int)rev);
+    }
+}
+
+// --- ChooseCarModelToLoad with deterministic RNG ---
+
+GAME_DIFF_TEST(CCarCtrl, ChooseCarModelToLoad_Deterministic) {
+    srand(42);
+    int32 orig;
+    { HookDisableGuard guard("Global/CCarCtrl/ChooseCarModelToLoad");
+      srand(42);
+      orig = CCarCtrl::ChooseCarModelToLoad(0); }
+    srand(42);
+    int32 rev = CCarCtrl::ChooseCarModelToLoad(0);
+    EXPECT_EQ(orig, rev);
+}

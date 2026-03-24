@@ -221,3 +221,62 @@ GAME_TEST(cHandlingDataMgr, VehicleNamesPopulated) {
     }
     EXPECT_TRUE(populated > 100);
 }
+
+// --- ConvertDataToWorldUnits standalone diff ---
+
+GAME_DIFF_TEST(cHandlingDataMgr, ConvertDataToWorldUnits_Direct) {
+    // Test that ConvertDataToWorldUnits produces same world-unit values
+    for (int32 id = 0; id < 10; id++) {
+        tHandlingData* h = gHandlingDataMgr.GetVehiclePointer(id);
+        if (h->m_fMass == 0.0f) continue;
+        tHandlingData saved = *h;
+        tHandlingData copy1 = saved, copy2 = saved;
+
+        { HookDisableGuard guard("Global/cHandlingDataMgr/ConvertDataToWorldUnits");
+          gHandlingDataMgr.ConvertDataToWorldUnits(&copy1); }
+        gHandlingDataMgr.ConvertDataToWorldUnits(&copy2);
+
+        EXPECT_NEAR(copy1.GetTransmission().m_MaxVelocity, copy2.GetTransmission().m_MaxVelocity, 1e-4f);
+        EXPECT_NEAR(copy1.m_fBrakeDeceleration, copy2.m_fBrakeDeceleration, 1e-4f);
+        EXPECT_NEAR(copy1.m_fSteeringLock, copy2.m_fSteeringLock, 1e-4f);
+
+        *h = saved;
+    }
+}
+
+// --- ConvertBikeDataToWorldUnits standalone diff ---
+
+GAME_DIFF_TEST(cHandlingDataMgr, ConvertBikeDataToWorldUnits_Direct) {
+    for (int32 id = 0; id < 5; id++) {
+        tBikeHandlingData* b = gHandlingDataMgr.GetBikeHandlingPointer(id);
+        tBikeHandlingData saved = *b;
+        tBikeHandlingData copy1 = saved, copy2 = saved;
+
+        { HookDisableGuard guard("Global/cHandlingDataMgr/ConvertBikeDataToWorldUnits");
+          gHandlingDataMgr.ConvertBikeDataToWorldUnits(&copy1); }
+        gHandlingDataMgr.ConvertBikeDataToWorldUnits(&copy2);
+
+        EXPECT_NEAR(copy1.m_fMaxLean, copy2.m_fMaxLean, 1e-4f);
+        EXPECT_NEAR(copy1.m_fWheelieAng, copy2.m_fWheelieAng, 1e-4f);
+
+        *b = saved;
+    }
+}
+
+// --- CalculateGearForSimpleCar ---
+
+GAME_DIFF_TEST(cHandlingDataMgr, CalculateGearForSimpleCar) {
+    for (int32 id = 0; id < 10; id++) {
+        tHandlingData* h = gHandlingDataMgr.GetVehiclePointer(id);
+        if (h->m_fMass == 0.0f) continue;
+        auto& trans = h->GetTransmission();
+        float speeds[] = { 0.0f, 0.1f, 0.5f, 1.0f };
+        for (float speed : speeds) {
+            uint8 origGear = 0, revGear = 0;
+            { HookDisableGuard guard("Global/cTransmission/CalculateGearForSimpleCar");
+              trans.CalculateGearForSimpleCar(speed, origGear); }
+            trans.CalculateGearForSimpleCar(speed, revGear);
+            EXPECT_EQ(origGear, revGear);
+        }
+    }
+}

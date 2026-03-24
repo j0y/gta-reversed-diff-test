@@ -39,3 +39,33 @@ GAME_DIFF_TEST(CRestart, OverrideAndCancel) {
     EXPECT_VEC_NEAR(origPos, revPos, 1e-5f);
     EXPECT_EQ(origCancelled, revCancelled);
 }
+
+// --- Initialise ---
+
+GAME_DIFF_TEST(CRestart, Initialise) {
+    // Save a few key fields
+    auto savedOverride = CRestart::bOverrideRestart;
+    auto savedNumHospital = CRestart::NumberOfHospitalRestarts;
+    auto savedNumPolice = CRestart::NumberOfPoliceRestarts;
+
+    { HookDisableGuard guard("Global/CRestart/Initialise");
+      CRestart::Initialise(); }
+    auto origNumH = CRestart::NumberOfHospitalRestarts;
+    auto origNumP = CRestart::NumberOfPoliceRestarts;
+
+    CRestart::NumberOfHospitalRestarts = savedNumHospital;
+    CRestart::NumberOfPoliceRestarts = savedNumPolice;
+    CRestart::Initialise();
+    auto revNumH = CRestart::NumberOfHospitalRestarts;
+    auto revNumP = CRestart::NumberOfPoliceRestarts;
+
+    EXPECT_EQ(origNumH, revNumH);
+    EXPECT_EQ(origNumP, revNumP);
+
+    // Restore
+    CRestart::NumberOfHospitalRestarts = savedNumHospital;
+    CRestart::NumberOfPoliceRestarts = savedNumPolice;
+    CRestart::bOverrideRestart = savedOverride;
+}
+
+// SetRespawnPointForDurationOfMission takes different args. Skipped.

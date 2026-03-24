@@ -309,3 +309,81 @@ auto CallOriginal(const char* hookPath, Fn fn, Args&&... args) -> decltype(fn(st
 
 // Differential test macro — same as GAME_TEST but documents intent
 #define GAME_DIFF_TEST(Class, Name) GAME_TEST(Class, Diff_##Name)
+
+// ---------------------------------------------------------------------------
+// Direct-call helpers for struct-returning functions (sret workaround)
+// ---------------------------------------------------------------------------
+//
+// HookDisableGuard doesn't work for functions returning structs > 4 bytes
+// (CVector, CVector2D, etc.) due to MSVC x86 sret calling convention issues.
+// Instead, call the original function directly at its game address using
+// inline asm with explicit sret pointer setup.
+//
+// These helpers encapsulate the asm patterns so test files don't need to
+// hand-roll inline assembly.
+
+// Call a __cdecl function at `addr` that returns CVector2D via sret.
+// Pattern: push args right-to-left, push sret pointer, call, add esp.
+inline CVector2D CallOriginal_CVector2D(uint32 addr, const CVector2D& arg1) {
+    CVector2D result = {};
+    const CVector2D* pIn = &arg1;
+    CVector2D* pOut = &result;
+    __asm {
+        mov eax, pIn
+        push eax
+        mov eax, pOut
+        push eax
+        mov eax, addr
+        call eax
+        add esp, 8
+    }
+    return result;
+}
+
+inline CVector2D CallOriginal_CVector2D(uint32 addr, const CVector2D& arg1, int32 arg2, int32 arg3) {
+    CVector2D result = {};
+    const CVector2D* pIn = &arg1;
+    CVector2D* pOut = &result;
+    __asm {
+        push arg3
+        push arg2
+        mov eax, pIn
+        push eax
+        mov eax, pOut
+        push eax
+        mov eax, addr
+        call eax
+        add esp, 16
+    }
+    return result;
+}
+
+// Call a __thiscall function at `addr` that returns CVector via sret.
+// MSVC thiscall sret: ecx = this, first stack arg = sret pointer, then visible args.
+inline CVector CallOriginal_CVector_Thiscall(uint32 addr, void* thisPtr, int32 arg1) {
+    CVector result = {};
+    CVector* pOut = &result;
+    __asm {
+        push arg1
+        mov eax, pOut
+        push eax
+        mov ecx, thisPtr
+        mov eax, addr
+        call eax
+    }
+    return result;
+}
+
+// Call a __thiscall function with CVector* output param (not sret — regular thiscall).
+// void __thiscall Fn(this, CVector* out, int32 arg1, bool arg2)
+inline void CallOriginal_OutVec_Thiscall(uint32 addr, void* thisPtr, CVector* out, int32 arg1, bool arg2) {
+    int32 bArg = arg2 ? 1 : 0;
+    __asm {
+        push bArg
+        push arg1
+        push out
+        mov ecx, thisPtr
+        mov eax, addr
+        call eax
+    }
+}

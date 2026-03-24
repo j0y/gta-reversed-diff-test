@@ -94,3 +94,32 @@ GAME_DIFF_TEST(CGeneral, GetAngleBetweenPoints) {
             CGeneral::GetAngleBetweenPoints, 1e-3f, c[0], c[1], c[2], c[3]);
     }
 }
+
+// --- GetRadianAngleBetweenPoints (overloaded: empty suffix) ---
+
+GAME_DIFF_TEST(CGeneral, GetRadianAngleBetweenPoints_Diff) {
+    float cases[][4] = {
+        {0,0, 1,0}, {0,0, 0,1}, {1,1, 2,2}, {-5,3, 10,-7},
+    };
+    for (auto& c : cases) {
+        float orig, rev;
+        { HookDisableGuard guard("Global/CGeneral/GetRadianAngleBetweenPoints-");
+          orig = CGeneral::GetRadianAngleBetweenPoints(c[0], c[1], c[2], c[3]); }
+        rev = CGeneral::GetRadianAngleBetweenPoints(c[0], c[1], c[2], c[3]);
+        EXPECT_NEAR(orig, rev, 1e-4f);
+    }
+}
+
+// --- GetRandomNumberInRange<int32> (overloaded) ---
+
+GAME_DIFF_TEST(CGeneral, GetRandomNumberInRange_Int) {
+    // Seed RNG deterministically for this test
+    srand(42);
+    int32 orig, rev;
+    { HookDisableGuard guard("Global/CGeneral/GetRandomNumberInRange<int32>-");
+      srand(42);
+      orig = CGeneral::GetRandomNumberInRange(0, 100); }
+    srand(42);
+    rev = CGeneral::GetRandomNumberInRange(0, 100);
+    EXPECT_EQ(orig, rev);
+}

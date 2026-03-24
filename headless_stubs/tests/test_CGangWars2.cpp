@@ -41,3 +41,30 @@ GAME_DIFF_TEST(CGangWars2, CalculateTimeTillNextAttack) {
     EXPECT_NEAR(orig, rev, 1e-3f);
     CGangWars::TimeTillNextAttack = saved; // restore
 }
+
+// CanPlayerStartAGangWarHere takes args. Skipped.
+
+// --- SetGangWarsActive ---
+
+GAME_DIFF_TEST(CGangWars2, SetGangWarsActive) {
+    bool saved = CGangWars::bGangWarsActive;
+    { HookDisableGuard guard("Global/CGangWars/SetGangWarsActive");
+      CGangWars::SetGangWarsActive(false); }
+    bool origVal = CGangWars::bGangWarsActive;
+
+    CGangWars::bGangWarsActive = saved;
+    CGangWars::SetGangWarsActive(false);
+    bool revVal = CGangWars::bGangWarsActive;
+
+    EXPECT_EQ(origVal, revVal);
+    CGangWars::bGangWarsActive = saved;
+}
+
+// --- ClearTheStreets ---
+
+GAME_DIFF_TEST(CGangWars2, ClearTheStreets) {
+    { HookDisableGuard guard("Global/CGangWars/ClearTheStreets");
+      CGangWars::ClearTheStreets(); }
+    CGangWars::ClearTheStreets();
+    EXPECT_TRUE(true);
+}
