@@ -26,7 +26,7 @@ GAME_DIFF_TEST(CShopping, GetKey_ClothesNames) {
 // --- GetPriceSectionFromName ---
 
 GAME_DIFF_TEST(CShopping, GetPriceSectionFromName_Various) {
-    const char* names[] = { "CLOTHES", "TATTOOS", "HAIRCUTS", "FOOD", "INVALID_SECTION" };
+    const char* names[] = { "CLOTHES", "TATTOOS", "HAIRCUTS", "FOOD" }; // "INVALID_SECTION" crashes original
     for (auto* name : names) {
         int32 orig, rev;
         { HookDisableGuard guard("Global/CShopping/GetPriceSectionFromName");

@@ -130,7 +130,7 @@ Test harness (inside .asi at game state 9):
 
 ## Test Results
 
-2095 tests across ~180 classes with ~36,000 assertions. 44 confirmed bugs found in gta-reversed via differential testing, including:
+2900 tests across ~255 classes with ~39,200 assertions. 52 confirmed bugs found in gta-reversed via differential testing, including:
 
 - Wrong array dimensions (`CVehicleModelInfo::GetWheelUpgrade`)
 - Wrong memory addresses (`CGangs::GetWillAttackPlayerWithCops`)
@@ -153,6 +153,13 @@ Test harness (inside .asi at game state 9):
 - Wrong pathfinding node selection (`CPathFind::FindNodeClosestToCoorsFavourDirection`)
 - Wrong IK chain acceptance (`IKChainManager_c::CanAcceptLookAt`)
 - Wrong cab driver model (`CStreaming::GetDefaultCabDriverModel`)
+- Wrong nearest object search (`CWorld::FindNearestObjectOfType`)
+- Wrong entry/exit index lookup (`CEntryExitManager::GetEntryExitIndex`)
+- Wrong stat threshold check (`CStats::CheckForThreshold`)
+- Wrong glass alpha calculation (`CGlass::CalcAlphaWithNormal`)
+- Wrong menu option count (`CMenuManager::GetNumberOfMenuOptions`)
+- Wrong attractor ped creation check (`CPopulation::PedMICanBeCreatedAtThisAttractor`)
+- Wrong item name tag lookup (`CShopping::GetNameTag`)
 
 Full details in [phase4-results.md](phase4-results.md).
 

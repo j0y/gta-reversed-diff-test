@@ -79,45 +79,29 @@ GAME_TEST(CRect, SizeValidation) {
     EXPECT_EQ(sizeof(CRect), (size_t)0x10);
 }
 
-// --- Differential tests for overloaded hooks ---
+// CRect::IsPointInside and Restrict are not hooked — behavior tests only
 
-GAME_DIFF_TEST(CRect, IsPointInside_Diff) {
+GAME_TEST(CRect, IsPointInside_Behavior) {
     CRect rect(0.f, 0.f, 100.f, 100.f);
-    CVector2D points[] = { {50.f,50.f}, {0.f,0.f}, {100.f,100.f}, {-1.f,50.f}, {50.f,101.f} };
-    for (auto& pt : points) {
-        bool orig, rev;
-        { HookDisableGuard guard("Global/CRect/IsPointInside-");
-          orig = rect.IsPointInside(pt); }
-        rev = rect.IsPointInside(pt);
-        EXPECT_EQ(orig, rev);
-    }
+    EXPECT_TRUE(rect.IsPointInside(CVector2D(50.f, 50.f)));
+    EXPECT_TRUE(rect.IsPointInside(CVector2D(0.f, 0.f)));
+    EXPECT_FALSE(rect.IsPointInside(CVector2D(-1.f, 50.f)));
+    EXPECT_FALSE(rect.IsPointInside(CVector2D(50.f, 101.f)));
 }
 
-GAME_DIFF_TEST(CRect, IsPointInside_Tolerance_Diff) {
+GAME_TEST(CRect, IsPointInside_Tolerance_Behavior) {
     CRect rect(0.f, 0.f, 100.f, 100.f);
-    CVector2D points[] = { {-5.f,50.f}, {50.f,-5.f}, {105.f,50.f}, {50.f,105.f} };
-    for (auto& pt : points) {
-        bool orig, rev;
-        { HookDisableGuard guard("Global/CRect/IsPointInside-Tolerance");
-          orig = rect.IsPointInside(pt, 10.f); }
-        rev = rect.IsPointInside(pt, 10.f);
-        EXPECT_EQ(orig, rev);
-    }
+    EXPECT_TRUE(rect.IsPointInside(CVector2D(-5.f, 50.f), 10.f));
+    EXPECT_FALSE(rect.IsPointInside(CVector2D(-15.f, 50.f), 10.f));
 }
 
-// Resize takes different args. Skipped.
-
-GAME_DIFF_TEST(CRect, Restrict_Diff) {
+// CRect::Restrict not hooked — behavior test
+GAME_TEST(CRect, Restrict_Behavior) {
     CRect rect(10.f, 10.f, 50.f, 50.f);
     CRect bounds(0.f, 0.f, 40.f, 40.f);
-    CRect origRect = rect, revRect = rect;
-    { HookDisableGuard guard("Global/CRect/Restrict");
-      origRect.Restrict(bounds); }
-    revRect.Restrict(bounds);
-    EXPECT_NEAR(origRect.left, revRect.left, 1e-5f);
-    EXPECT_NEAR(origRect.right, revRect.right, 1e-5f);
-    EXPECT_NEAR(origRect.top, revRect.top, 1e-5f);
-    EXPECT_NEAR(origRect.bottom, revRect.bottom, 1e-5f);
+    rect.Restrict(bounds);
+    EXPECT_TRUE(rect.right <= 40.f);
+    EXPECT_TRUE(rect.bottom <= 40.f);
 }
 
 GAME_TEST(CRect, StretchToPoint) {

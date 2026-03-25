@@ -6,7 +6,7 @@ Compares game behavior with reversed hooks enabled vs disabled by hashing observ
 
 All test modes work end-to-end:
 - **Differential hash test** — deterministic baselines, all-disabled produces distinct hash, 29 categories tested
-- **Scenario tests (Phase 4b)** — 2095 tests, ~36000 assertions, ~180 classes, 44 bugs found
+- **Scenario tests (Phase 4b)** — 2900 tests, ~39200 assertions, ~255 classes, 50 bugs found
 - hooks.csv (7994 hooks) and hooks_paths.csv (718 paths) collected automatically
 
 ## Architecture
@@ -308,7 +308,7 @@ GAME_DIFF_TEST(CGeneral, SolveQuadratic) {
 
 Hook paths are from `hooks_paths.csv` (e.g., `"Global/CGeneral/LimitAngle"`).
 
-### Current Test Suite: 2095 tests, ~36000 assertions, ~180 classes
+### Current Test Suite: 2900 tests, ~39200 assertions, ~255 classes
 
 **Behavior tests (19):**
 - CVector: Constructor_Default, Constructor_XYZ, Magnitude_345, Magnitude_Zero, Normalise_UnitLength, Normalise_AlreadyUnit, Addition, Subtraction, ScalarMultiply, Magnitude2D
@@ -423,7 +423,47 @@ The reversed code (Maths.cpp) overwrites the original sin lookup table at `0xBB3
 | Physics mutation (2026-03-24) | 15 | | ApplyForce, ApplyTurnForce, ApplyMoveSpeed, ApplyFrictionMoveForce on spawned vehicles |
 | Deep queries (2026-03-24) | 65 | | CPedIntelligence (15 task+friend queries), CPlayerPed (6), CTheScripts (5), CStreaming (11), CCamera (9), CEntity (9), CVehicle (18+), CWorld (9) |
 | New classes (2026-03-24) | 12 | | CVisibilityPlugins, CCutsceneMgr, CIplStore, CGroupEventHandler, CAnimManager, CTxdStore, CPopulation (extended), CExplosion, CFireManager |
-| **Total tested** | **~1100** | **~8000** | |
+| Vehicle subtypes (2026-03-25) | 31 | | CBike2 (8 queries), CBoat2 (11 spawned boat + CVehicle), CHeli2 (12 heli static + CAutomobile) |
+| New classes (2026-03-25) | 22 | | CFont (string width), CCover, CGlass (extended), CAnimManager (group/block names), CClothes (motion groups) |
+| Extended queries (2026-03-25) | 22 | | CWanted (5 force queries), CPlayerPed (8 target/weapon queries), CPlayerInfo (2), CReplay (5 pool queries) |
+| Spawned objects (2026-03-25) | 6 | | CObject5 (CanBeDeleted, CanBeTargetted, CanBeUsedToTakeCoverBehind + entity queries) |
+| Misc (2026-03-25) | 1 | | CCarGenerator (range check on 10 generators) |
+| Population queries (2026-03-25) | 5 | | CPopulation (IsSkateable, CanSolicitPlayerOnFoot, PedMICanBeCreated variants) |
+| Explosion queries (2026-03-25) | 5 | | CExplosion (GetExplosionType x16, TestForExplosionInArea x10, behavior x32) |
+| World queries (2026-03-25) | 5 | | CWorld (FindPlayerSlot, FindNearestObjectOfType, FindObjectsInRange at new positions) |
+| New classes (2026-03-25) | 9 | | CDecisionMaker (name lookups), CPickup (text index + visibility), CCarAI (EntitiesGoHeadOn), CRoadBlocks, CWaterLevel (depth), CEntryExit, CGarages (camera zone), CCarEnterExit (behavior) |
+| Shadows/FX (2026-03-25) | 8 | | CShadows (CalcPedShadowValues, AffectColourWithLighting, TidyUpShadows, RemoveOilInArea), CSpecialFX (ReplayStarted), CPointLights (behavior) |
+| Task system (2026-03-25) | 59 | | CTaskSimple* (12 classes: GetTaskType, Clone, MakeAbortable), CTaskComplex* (6 classes: GetTaskType, Clone, flags) |
+| Weapon queries (2026-03-25) | 7 | | CWeapon (CanBeUsedFor2Player-Static/-Method, TargetWeaponRangeMultiplier), CWeaponInfo (GetWeaponInfo-original, GetSkillStatIndex) |
+| CDarkel extended (2026-03-25) | 5 | | ResetModelsKilledByPlayer, ThisVehicleShouldBeKilledForFrenzy, QueryModelsKilledByPlayer (800 models), CheckDamagedWeaponType (441 combos) |
+| Event system (2026-03-25) | 10 | | CEventScriptCommand (6 queries), CEventGroup, CEventHandlerHistory (3 queries), CEventGroupEvent (6 queries) |
+| Stat queries (2026-03-25) | 12 | | CStats (GetFatAndMuscleModifier, FindRadioStation, FindCriminalRatingString, CheckForThreshold, ConvertToMins/Secs), CPedStats (GetPedStatByArrayIndex, GetPedStatInfo) |
+| Streaming extended (2026-03-25) | 6 | | CStreaming (IsObjectInCdImage behavior, WeAreTryingToPhaseVehicleOut, FindMIPedSlotForInterior, HasSpecialCharLoaded, HasVehicleUpgradeLoaded) |
+| Collision/attractors (2026-03-25) | 10 | | CColStore (FindColSlot, AddCollisionNeededAtPosn, AddRef/RemoveRef), CPedAttractorManager (IsPedRegisteredWithEffect) |
+| Train/Plane (2026-03-25) | 14 | | CTrain (FindNearestTrain, DisableRandomTrains, FindNumCarriagesPulled, FindSideStationIsOn, IsInTunnel), CPlane (CountPlanesAndHelis, AreWeInNoPlaneZone, AreWeInNoBigPlaneZone, SwitchAmbientPlanes) |
+| Radar extended (2026-03-25) | 4 | | CRadar (CalculateBlipAlpha, GetActualBlipArrayIndex, GetRadarTraceColour 36 combos, LimitRadarPoint) |
+| Pickups/Glass (2026-03-25) | 7 | | CPickups (TestForPickupsInBubble, WeaponForModel, GivePlayerGoodiesWithPickUpMI, FindPickUpForThisObject), CGlass (CalcAlphaWithNormal 1 bug, FindFreePane, IsObjectGlass) |
+| Garages/generators (2026-03-25) | 12 | | CGarages (AllRespraysCloseOrOpen, Activate/DeActivate, IsGarageOpen/Closed x50, GetGarageNumberByName), CCarGenerator (CheckForBlockage, CalcNextGen) |
+| Shadows extended (2026-03-25) | 5 | | CShadows (GunShotSetsOilOnFire, UpdateStaticShadows) |
+| Replay/Clothes/Wanted (2026-03-25) | 12 | | CReplay (vehicle pool queries), CClothes (RequestMotionGroupAnims, RebuildPlayerIfNeeded), CWanted (SetMaximumWantedLevel, CanCopJoinPursuit, SetPursuitCop) |
+| Ped/Entity/Physical (2026-03-25) | 29 | | CPed (GetWeaponSkill, CanSeeEntity, UseGroundColModel, PedIsReadyForConversation, DoWeHaveWeaponAvailable), CEntity (LivesInThisNonOverlapSector, DoesNotCollideWithFlyers, GetModellingMatrix), CPhysical (GetLightingTotal, GetLightingFromCol, AddToMovingList/RemoveFromMovingList) |
+| Camera/HUD/Menu (2026-03-25) | 14 | | CCamera (ConsiderPedAsDucking, IsExtraEntityToIgnore, Using1stPersonWeaponMode, GetScreenRect), CHud (behavior), CMenuManager (StretchX/Y, GetNumberOfMenuOptions 1 bug) |
+| Zones/Text (2026-03-25) | 16 | | CTheZones (GetNavigationZone, GetMapZone, PointLiesWithinZone, FindSmallestZoneForPosition, ZoneContainment), CText (Get with 5 GXT keys) |
+| Vehicle deep (2026-03-25) | 27 | | CVehicle7 (11 queries), CAutomobile6 (8 door/road/crime queries), CBike3 (4 lean/horn), CPhysical6 (11 force/speed/lighting) |
+| Misc (2026-03-25) | 11 | | CAccidentManager (4 queries), CStuntJumpManager (4 behavior), CReplay (vehicle pool), CClothes, CWanted |
+| Localisation (2026-03-25) | 14 | | CLocalisation (12 bool getters: Metric, Blood, Porn, ScreamsFromKills, Prostitutes, etc.) |
+| TagManager/FxManager (2026-03-25) | 12 | | CTagManager (IsTag, GetTagPos x5, GetNearestTag), FxManager_c (FindFxSystemBP, GetFrustumInfo) |
+| Interior/Water/Stuck (2026-03-25) | 22 | | InteriorManager (4 queries), WaterCreatureManager (5 CanAddWaterCreatureAtPos), CStuckCarCheck (10 edge-case handles) |
+| Ropes/Coronas/Clothes (2026-03-25) | 19 | | CRopes (5 rope/pickup queries on spawned vehicle), CCoronas (8 sun/moon/update), CPedClothesDesc (11 initialise/balaclava/tattoo/haircut) |
+| CWorld systematic (2026-03-25) | 17 | | ProcessLineOfSight (3), ProcessVerticalLine, FindObjectsKindaColliding (2), FindObjectsIntersectingCube, FindMissionEntitiesIntersectingCube, FindObjectsOfTypeInRange, FindLodOfTypeInRange, FindPlayerSlotWithVehiclePointer (2), GetSector (4), GetRepeatSector (4), ResetLineTestOptions, SprayPaintWorld (2) |
+| CStreaming systematic (2026-03-25) | 17 | | GetNextFileOnCd (behavior), IsVeryBusy, DisableCopBikes (2), GetDefaultFiremanModel, GetDefaultMedicModel, AreAnimsUsedByRequestedModels (20), AreTexturesUsedByRequestedModels (20), IsCarModelNeededInCurrentZone (43), RemoveLeastUsedModel, AddToLoadedVehiclesList, GetDefaultCopModel (5), GetDefaultCopCarModel (5), PossiblyStreamCarOutAfterCreation, SetModelIsDeletable, SetMissionDoesntRequireModel |
+| CPopulation systematic (2026-03-25) | 7 | | CanJeerAtStripper (6), FindDummyDistForModel (5), FindSpecificDriverModelForCar_ToUse (4), PedMICanBeCreatedAtThisAttractor (16 combos, 1 bug), ChooseCivilianCoupleOccupations, UpdatePedCount, IsCorrectTimeOfDayForEffect |
+| CPathFind systematic (2026-03-25) | 14 | | ThisNodeHasToBeSwitchedOff, ThisNodeWillLeadIntoADeadEnd, FindLinkBetweenNodes (2), ReturnInteriorNodeIndex, FindNearestExteriorNodeToInteriorNode, AreNodesLoadedForArea (3), MarkRegionsForCoors, SetPathsNeededAtPosition, TestForPedTrafficLight (20 pairs), TestCrossesRoad (20 pairs), IsWaterNodeNearby (3 positions) |
+| CRadar systematic (2026-03-25) | 12 | | DisplayThisBlip (192 assertions), LimitToMap (3), SetMapCentreToPlayerCoords, CalculateCachedSinCos, ChangeBlipBrightness/Scale/Display/Colour, SetCoordBlipAppearance, ClearBlip |
+| CCarAI systematic (2026-03-25) | 12 | | CarHasReasonToStop, GetCarToGoToCoors (2), GetCarToGoToCoorsAccurate, GetCarToGoToCoorsStraightLine, GetCarToGoToCoorsRacing, GetCarToParkAtCoors, MellowOutChaseSpeed/Boat, MakeWayForCarWithSiren, TellOccupantsToLeaveCar, FindPoliceCarSpeedForWantedLevel (7 levels) |
+| CPickups systematic (2026-03-25) | 17 | | PickUpShouldBeInvisible (20 more), TryToMerge_WeaponType (2), DetonateMinesHitByGunShot, PassTime, RemovePickUpsInArea, RemoveUnnecessaryPickups, PickedUpHorseShoe/Oyster, PictureTaken, CreateSomeMoney, RemoveMissionPickUps, AddToCollectedPickupsArray, GetUniquePickupIndex, FindPickUpForThisObject, GetPosn |
+| CShopping systematic (2026-03-25) | 11 | | GetNameTag (1 bug), RemoveLoadedPrices/Shop, ShutdownForRestart, StoreRestoreClothesState, SetCurrentProperty, LoadStats, GetKey (60 combos), GetPriceSectionFromName, HasPlayerBought/GetPrice (computed keys) |
+| **Total tested** | **~1650** | **~8000** | |
 
 ### File Structure
 
@@ -432,121 +472,7 @@ headless_stubs/
 ├── TestFramework.h            # GAME_TEST/GAME_DIFF_TEST macros, assertions, HookDisableGuard, SuspendOtherThreads, ResumeOtherThreads
 ├── ScenarioHelpers.h          # RAII wrappers for spawning game objects (TestVehicle, TestPed)
 ├── game_tests.cpp             # Test runner with warmup phase, GAME_TEST_FILTER support (dispatched from soak_test.cpp)
-├── tests/                     # Per-class test files (auto-discovered by build.sh) — 293 files
-│   ├── test_CAEVehicleAudioEntity.cpp  # 4 tests — audio type/settings queries on spawned vehicle (1 bug found)
-│   ├── test_CAmbientPed.cpp   # 19 diff tests on spawned civilian ped (ScenarioHelpers)
-│   ├── test_CAutomobile.cpp   # 15 tests — wheel/door/physics queries on spawned automobile
-│   ├── test_CBaseModelInfo.cpp # 9 diff tests — flag queries across loaded models (LOD, road, culling)
-│   ├── test_CBoat.cpp         # 3 tests — wake sector queries
-│   ├── test_CBridge.cpp       # 1 diff test
-│   ├── test_CAEAudioHardware.cpp # 4 diff tests — channel count, scaling factors
-│   ├── test_CCamera.cpp       # 17 tests (16 diff + 1 behavior)
-│   ├── test_CMaths.cpp        # 6 tests — sin LUT comparison (original vs reversed static init) + behavioral
-│   ├── test_CStuckCarCheck.cpp # 10 tests — array management, flag logic, differential lookups
-│   ├── test_CVehicleAnimGroupData.cpp # 9 tests — timing/group/offset lookups across 30 groups (2 bugs found)
-│   ├── test_cHandlingDataMgr.cpp  # 11 tests — handling lookups, drive type, unit conversion across 210 vehicles (1 bug found)
-│   ├── test_CTimer.cpp            # 14 tests — timer getters, pause state, UpdateVariables with known inputs
-│   ├── test_CCoronas.cpp          # 8 tests — corona registration, update, position queries on spawned coronas
-│   ├── test_CTheCarGenerators.cpp # 8 tests — Init, CreateCarGenerator, RemoveCarGenerators, Get accessor
-│   ├── test_CCompressedMatrixNotAligned.cpp # 6 tests — compress/decompress round-trips, 5 orientations
-│   ├── test_CBirds.cpp            # 9 tests — Init, Shutdown, CreateNumberOfBirds, HandleGunShot (hit+miss)
-│   ├── test_CVehicle2.cpp         # 14 tests — extended vehicle queries: CanBeDeleted, CanVehicleBeDamaged, flags, FindTyre (1 bug found)
-│   ├── test_CPedGroup2.cpp        # 8 tests — group membership/distance/closest with spawned ped members
-│   ├── test_Scenario_PedInVehicle.cpp  # 11 tests — ped placed as driver, vehicle+ped state queries
-│   ├── test_Scenario_VehicleDamage.cpp # 12 tests — damage set/get round-trips, progression, health thresholds
-│   ├── test_Scenario_WantedLevel.cpp   # 8 tests — wanted level 0-6 queries, chaos mapping (2 bugs found)
-│   ├── test_CSetPieces.cpp        # 9 tests — Init, AddOne, Update early-returns, fixed-point coords
-│   ├── test_Scenario_WeaponEquip.cpp  # 10 tests — give weapons, slot queries, type checks, clear
-│   ├── test_CGarages2.cpp         # 10 tests — all 50 garages, IsCarSprayable, activate/deactivate, ChangeGarageType (1 bug found)
-│   ├── test_CRopes2.cpp           # 15 tests — Init, FindRope, IsCarriedByRope field diagnosis, SetSpeedOfTopNode, FindPickupHeight (1 bug found)
-│   ├── test_CWaterCreatures.cpp   # 8 tests — creature ID generation, position checks, info table, distribution (2 bugs found)
-│   ├── test_CCarCtrl2.cpp         # 11 tests — parking, steer angle, car model loading, police/gang models (1 bug found)
-│   ├── test_CPopulation2.cpp      # 11 tests — multipliers, distance queries, occupation, gang cars, gender (1 bug found)
-│   ├── test_CAutomobile2.cpp      # 8 tests — collision offset, FixTyre, FixPanel, CloseAllDoors, ScanForCrimes
-│   ├── test_CCarAI.cpp        # 6 diff tests — police mission/speed lookups (1 bug found)
-│   ├── test_CCarEnterExit.cpp # 17 diff tests — door flags/health/seat/jack queries
-│   ├── test_CConversations.cpp # 1 diff test — conversation state
-│   ├── test_CCarCtrl.cpp      # 3 diff tests
-│   ├── test_CCheat.cpp        # 1 diff test
-│   ├── test_CClock.cpp        # 3 diff tests
-│   ├── test_CClouds.cpp       # 2 diff tests
-│   ├── test_CCollision.cpp    # 19 behavior tests — geometry math (hooks locked, can't diff)
-│   ├── test_CControllerConfigManager.cpp  # 9 diff tests (~350 assertions)
-│   ├── test_CCullZones.cpp    # 12 diff tests (zone flag queries)
-│   ├── test_CClothes.cpp      # 2 diff tests — player motion group queries
-│   ├── test_CDamageManager.cpp # 7 diff tests — engine/door/panel/light status (4 bugs found)
-│   ├── test_CDarkel.cpp       # 6 diff tests (1 known bug)
-│   ├── test_CEntity.cpp       # 10 diff tests (entity + physical queries on player ped)
-│   ├── test_CEntryExitManager.cpp  # 2 diff tests
-│   ├── test_CEventHandler.cpp # 2 diff tests — event type queries on player + spawned ped
-│   ├── test_CExplosion.cpp    # 6 tests — explosion slot queries + area tests
-│   ├── test_CFireManager.cpp  # 4 diff tests (1 bug found)
-│   ├── test_CGameLogic.cpp    # 3 diff tests
-│   ├── test_CGangs.cpp        # 1 diff test (1 bug found)
-│   ├── test_CGangWars.cpp     # 5 diff tests
-│   ├── test_CPedStats.cpp     # 1 diff test
-│   ├── test_CGarages.cpp      # 5 diff tests
-│   ├── test_CGeneral.cpp      # 5 behavior + 5 diff tests
-│   ├── test_CGlass.cpp        # 1 diff test
-│   ├── test_CMessages.cpp     # 8 tests — GXT string length/compare/copy
-│   ├── test_CModelInfo.cpp    # 12 diff tests (~850 assertions)
-│   ├── test_COcclusion.cpp    # 2 diff tests — position occlusion queries
-│   ├── test_CPad.cpp          # 32 diff tests
-│   ├── test_CPathFind.cpp     # 13 diff tests
-│   ├── test_CPed.cpp          # 30 diff tests (player ped state/weapon queries)
-│   ├── test_CPedClothesDesc.cpp # 3 diff tests — balaclava/tattoo/haircut on player
-│   ├── test_CPedGroup.cpp     # 4 diff tests — group membership/distance queries
-│   ├── test_CPedIntelligence.cpp  # 19 diff tests (task getters + relationship + event queries)
-│   ├── test_CPedType.cpp      # 3 diff tests (1 bug found)
-│   ├── test_CPhysical.cpp     # 10 diff tests — speed/collision/lighting on player + vehicle
-│   ├── test_CPickups.cpp      # 4 diff tests
-│   ├── test_CPools.cpp        # 7 diff tests — handle/reference round-trip (ped, vehicle)
-│   ├── test_CPlaceable.cpp    # 7 diff tests — heading/roll/IsWithinArea on player + vehicle
-│   ├── test_CPlayerInfo.cpp   # 4 diff tests
-│   ├── test_CPlayerPed.cpp    # 7 diff tests
-│   ├── test_CPopCycle.cpp     # 2 diff tests
-│   ├── test_CPopulation.cpp   # 6 diff tests
-│   ├── test_CRadar.cpp        # 5 diff tests
-│   ├── test_CReplay.cpp       # 2 diff tests
-│   ├── test_CRestart.cpp      # 1 diff test
-│   ├── test_CStats.cpp        # 7 diff tests
-│   ├── test_CStreaming.cpp    # 11 tests (10 diff + 1 behavior)
-│   ├── test_CStreaming_Load.cpp # 10 tests — streaming I/O diagnostics (RequestModel, LoadAllRequestedModels, TXD loading)
-│   ├── test_CStreaming_Vehicles.cpp # 41 tests — CVehicle queries on streamed bike/boat/heli/plane/bmx/trailer
-│   ├── test_Scenario_PedInVehicleTypes.cpp # 19 tests — ped-in-vehicle across types, CCarEnterExit door/steal queries
-│   ├── test_Scenario_DamageAcrossTypes.cpp # 9 tests — health thresholds, weapon matrix, lights across 5 vehicle types
-│   ├── test_CTagManager.cpp   # 1 diff test
-│   ├── test_CTaskManager.cpp  # 8 diff tests — task queries on player + spawned ped
-│   ├── test_CTheScripts.cpp   # 3 diff tests
-│   ├── test_CTheScripts2.cpp  # 3 diff tests — IsPedStopped/IsVehicleStopped
-│   ├── test_CTheZones.cpp     # 1 diff test
-│   ├── test_CTimeCycle.cpp    # 10 diff tests
-│   ├── test_CTrafficLights.cpp  # 2 diff tests
-│   ├── test_CVector.cpp       # 12 behavior tests
-│   ├── test_CRopes.cpp        # 1 diff test
-│   ├── test_CVehicle.cpp      # 18 diff tests on spawned vehicle (ScenarioHelpers)
-│   ├── test_CVehicleModelInfo.cpp  # 7 diff tests (1 bug found)
-│   ├── test_CWanted.cpp       # 6 diff tests
-│   ├── test_CWaterLevel.cpp   # 5 diff tests — water height at ocean/river/land locations
-│   ├── test_CWeapon.cpp       # 4 diff tests (player weapon slots)
-│   ├── test_CWeaponInfo.cpp   # 1 diff test
-│   ├── test_CWeather.cpp      # 4 diff tests
-│   ├── test_CWorld.cpp        # 5 diff tests (ground/roof Z, line of sight)
-│   ├── test_SurfaceInfos.cpp  # 49 tests — all 50 accessors across 179 surface IDs (~8000 assertions)
-│   ├── test_CHudColours.cpp       # 3 diff tests — GetIntColour/GetRGB/GetRGBA across 20 indices (1 bug found)
-│   ├── test_CTheZones2.cpp        # 10 diff tests — FindZoneByLabel, FindSmallestZone, zone geometry (2 bugs found)
-│   ├── test_CTheZones3.cpp        # 2 behavior tests — GetZoneInfo (overloaded hook, can't diff)
-│   ├── test_CColStore2.cpp        # 2 diff tests — HasCollisionLoaded, GetBoundingBox
-│   ├── test_COcclusion2.cpp       # 3 diff tests — IsPositionOccluded radius/grid sweep, OccluderHidesBehind
-│   ├── test_CAccidentManager2.cpp # 4 diff tests — GetNearestFreeAccident multi-position
-│   ├── test_CShotInfo2.cpp        # 1 diff test — GetFlameThrowerShotPosn all 100 slots
-│   ├── test_CPhysical3.cpp        # 5 diff tests — ApplyGravity, SkipPhysics on player + vehicle
-│   ├── test_CVehicle3.cpp         # 12 diff tests — GetRemapIndex, CanBeDeleted, IsUpsideDown, GetPlaneNumGuns, etc.
-│   ├── test_CPed2.cpp             # 12 diff tests — IsPointerValid, IsPedInControl, OurPedCanSeeThisEntity on player + NPC
-│   ├── test_CPathFind3.cpp        # 4 diff tests — FindNodeClosestToCoorsFavourDirection (1 bug found)
-│   ├── test_CPedStats3.cpp        # 3 diff tests — GetPedStatType across 26 names
-│   ├── test_CWaterLevel2.cpp      # 4 behavior tests — GetWaterLevel at ocean/inland positions
-│   └── test_InteriorManager.cpp   # 5 diff tests — IsGroupActive, GetPedsInterior, GetVectorsInterior
+├── tests/                     # Per-class test files (auto-discovered by build.sh)
 ├── soak_test.cpp              # Env var dispatch (DIFF_TEST/GAME_TEST/soak)
 ├── differential_test.cpp      # Phase 4 hash-based differential testing
 └── headless_render_stubs.cpp  # Frame callback injection
@@ -571,7 +497,7 @@ docker run --rm \
 
 ## Bugs Found in gta-reversed
 
-44 confirmed bugs found by differential testing. Each was discovered by calling the same function with hooks enabled (reversed code) vs disabled (original code) and comparing results.
+50 confirmed bugs found by differential testing. Each was discovered by calling the same function with hooks enabled (reversed code) vs disabled (original code) and comparing results.
 
 | # | Function | Bug |
 |---|---|---|
@@ -618,17 +544,24 @@ docker run --rm \
 | 41 | `CPathFind::FindNodeClosestToCoorsFavourDirection` | Returns different node ID than original at `0x44FCE0` for same position and direction. Node area matches but node index diverges — likely wrong tie-breaking or distance comparison in the direction-favouring logic. |
 | 42 | `IKChainManager_c::CanAcceptLookAt` | Returns different result than original at `0x6188B0` when querying whether a ped can accept a look-at IK chain. |
 | 43 | `CStreaming::GetDefaultCabDriverModel` | Returns different model ID than original. Uses RNG internally — reversed code likely has different RNG call sequence or range. |
+| 44 | `CWorld::FindNearestObjectOfType` | `FindNearestObjectOfTypeSectorList` at `World.cpp:1139` uses `<=` but original at `0x565450` uses strict `<` (`fcom` + `test ah,5` + `jp`). When two entities are equidistant, reversed replaces the first with the second, original keeps the first. **Fix:** change `dist <= radius` to `dist < radius`. |
+| 45 | `CEntryExitManager::GetEntryExitIndex` | Original at `0x43EFD0` iterates pool slots from LAST to FIRST (`esi = m_nSize`, `dec esi` each loop). Reversed uses `GetAllValidWithIndex()` which iterates FIRST to LAST. Returns different index when multiple entries share the same name. **Fix:** reverse iteration direction. |
+| 46 | `CGlass::CalcAlphaWithNormal` | Original at `0x71ACF0` uses constant `0.57f` (at `0x872728`) as normalization factor. Reversed uses `1/SQRT_3 ≈ 0.5774`. Difference is ~1.3%, amplified to ~8% by the 6th power (e.g., factor=1.5 → original alpha=112, reversed=119). Formula structure is correct. **Fix:** replace `/ SQRT_3` with `* 0.57f`. |
+| 47 | `CPopulation::PedMICanBeCreatedAtThisAttractor` | Original at `0x6110E0` returns `true` (mov al,1 at `0x611176`) when no attractor name matches. Reversed returns `false`. **Fix:** change final `return false;` to `return true;`. |
+| 48 | `CShopping::GetNameTag` | Original at `0x49ADA0` is a combined search+pointer function. `FindItem` at `0x49AD20` returns `-1` on not-found (`or eax, 0xFFFFFFFF`). Reversed uses `NOTSA_UNREACHABLE()` which crashes. Same root cause as bugs #30–34. **Fix:** replace `NOTSA_UNREACHABLE()` with `return -1;`. |
 
 **Not a bug — false positives confirmed by disassembly:**
 - `CRadar::TransformRadarPointToScreenSpace` — divergence caused by `sret` calling convention issue in test infrastructure, not a reversal bug.
 - `CVehicleRecording::RegisterRecordingFile` (#38 removed) — reversed code matches original exactly (confirmed by disassembly at `0x459F80`). Test fails due to state mutation: `NumPlayBackFiles++` on each call, so calling original then reversed always produces different return values. Note: phase4 table incorrectly listed address as `0x49AD20` (which is `CShopping::FindItem`).
+- `CStats::CheckForThreshold` (#46 removed) — comparison logic is equivalent between original and reversed. Test divergence caused by `*pValue` mutation: the function writes `*pValue = range` when returning true, so the second call (original or reversed) sees the mutated value.
+- `CMenuManager::GetNumberOfMenuOptions` (#48 removed) — all enum values and constants match original. Test divergence caused by static cache (`s_PrevScreen` at `0x8CDFF0`): first call populates the cache, second call returns stale cached value.
 
 ## Test Infrastructure Limitations
 
 ### Functions that can't be differentially tested
 
 - **Locked hooks** — `CCollision::*` functions have `{.locked=true}`, can't toggle. Tested as behavior tests only.
-- **No hook registration** — `CAccident::IsFree()` exists but `InjectHooks()` is not implemented upstream.
+- **No hook registration** — `CAccident::IsFree()` exists but `InjectHooks()` is not implemented upstream. Also: `CStats::GetFatAndMuscleModifier`, `FindMostFavoriteRadioStation`, `FindCriminalRatingString`; `CStreaming::IsInitialised`, `IsObjectInCdImage`, `GetDiscInDrive`, `CarIsCandidateForRemoval`; `CPedStats::GetPedStatByArrayIndex`, `GetPedStatInfo`; `CColStore::FindColSlot`; `CPointLights::*` (all plugin::Call wrappers). These are tested as behavior tests only.
 - **Not reversed** — `CWaterLevel::GetWaterLevelNoWaves` marked `{.reversed = false}` upstream.
 - **Inlined functions** — `CPad::IsEnterJustPressed`, `IsMouseLButtonPressed`, etc. are not hooked. `CVector::InjectHooks()` disabled upstream.
 - **Hook paths missing at runtime** — `CHud` hooks registered but paths not found.
@@ -679,7 +612,7 @@ __asm {
 - **Deleted test files persist in Docker volume** — `build-tests.sh` doesn't sync deletions. Remove manually: `docker run --rm -v gta-build-tree:/tmp/gta-build gta-reversed-build rm /tmp/gta-build/source/test_Foo.cpp` then full rebuild.
 - **New test files require full rebuild** — The `build-tests` incremental command only recompiles existing unity TUs. New files need `docker volume rm gta-build-tree && ./scripts/docker-build.sh build` to regenerate the unity layout and cmake configuration. After full rebuild, new tests register and run correctly (verified: all `.CRT$XCU` initializers execute under Wine).
 - **Some cheats crash headlessly** — `FatCheat`, `MuscleCheat`, `ParachuteCheat` modify the player model (needs RenderWare clump operations). `EverybodyAttacksPlayerCheat`, `MayhemCheat` trigger AI that crashes without rendering. Only flag-toggle cheats (weather, time, BlackCars, Driveby, NotWanted) are safe.
-- **Test timeout** — 600s needed for full 1914-test suite (~0.3s/test due to hook toggling overhead). Use `GAME_TEST_FILTER` for faster iteration.
+- **Test timeout** — 600s needed for full 2900-test suite (~0.3s/test due to hook toggling overhead). Use `GAME_TEST_FILTER` for faster iteration.
 - **Comma-separated filter** — `GAME_TEST_FILTER` now accepts comma-separated class names (e.g., `CVector,CPed2,CVehicle3`). OR logic: a test runs if any token matches its `Class/Name`. Useful for running multiple new test files in a single launch instead of one-at-a-time.
 - **`run.sh test`** — `./scripts/run.sh test [filter]` handles all Docker mounts, env vars, and result display. No need to type the full `docker run` command. `./scripts/run.sh test` for full suite, `./scripts/run.sh test CVector,CPed2` for filtered.
 - **Overloaded hook paths** — functions registered via `RH_ScopedOverloadedInstall` (e.g., `CTheZones::GetZoneInfo`, `CWaterLevel::GetWaterLevel`) have hook paths that include an empty suffix and can't be found by `HookDisableGuard`. Test these as behavior tests only, or use the overload's distinguishing name if one was provided.
