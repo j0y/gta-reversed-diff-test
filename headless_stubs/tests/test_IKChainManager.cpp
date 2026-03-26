@@ -32,6 +32,35 @@ GAME_DIFF_TEST(IKChainManager, CanAcceptLookAt_Player) {
     EXPECT_EQ(orig, rev);
 }
 
+// --- CanAccept ---
+
+GAME_DIFF_TEST(IKChainManager, CanAccept_Player) {
+    auto* player = FindPlayerPed(0);
+    if (!player) return;
+    float priorities[] = { 0.0f, 0.5f, 1.0f, 2.0f };
+    for (float p : priorities) {
+        bool orig, rev;
+        { HookDisableGuard guard("Global/IKChainManager_c/CanAccept");
+          orig = g_ikChainMan.CanAccept(player, p); }
+        rev = g_ikChainMan.CanAccept(player, p);
+        EXPECT_EQ(orig, rev);
+    }
+}
+
+// --- IsArmPointing ---
+
+GAME_DIFF_TEST(IKChainManager, IsArmPointing_Player) {
+    auto* player = FindPlayerPed(0);
+    if (!player) return;
+    for (int arm = 0; arm < 2; arm++) {
+        bool orig, rev;
+        { HookDisableGuard guard("Global/IKChainManager_c/IsArmPointing");
+          orig = IKChainManager_c::IsArmPointing((eIKArm)arm, player); }
+        rev = IKChainManager_c::IsArmPointing((eIKArm)arm, player);
+        EXPECT_EQ(orig, rev);
+    }
+}
+
 // --- GetLookAtEntity ---
 
 GAME_DIFF_TEST(IKChainManager, GetLookAtEntity_Player) {

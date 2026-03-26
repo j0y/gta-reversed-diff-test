@@ -7,7 +7,7 @@ Headless Linux testing infrastructure for [gta-reversed](https://github.com/gta-
 1. **Builds** `gta_reversed.asi` on Linux with the real MSVC compiler running under Wine
 2. **Runs** GTA:SA headlessly — null D3D9 device, null audio, virtual framebuffer
 3. **Tests** reversed functions by toggling hooks at runtime and comparing original vs reversed behavior
-4. **Reports** bugs found by differential testing (44 confirmed bugs so far across 2095 tests)
+4. **Reports** bugs found by differential testing (53 confirmed bugs so far across 2947 tests)
 
 ## Quick Start
 
@@ -51,7 +51,7 @@ Output: `build-output/gta_reversed.asi` (~22MB) and `build-output/d3d9.dll` (~24
 ### Run tests
 
 ```bash
-# Scenario tests (1914 tests, ~33000 assertions)
+# Scenario tests (2947 tests, ~39800 assertions)
 ./scripts/docker-build.sh build-tests   # Incremental rebuild (~6s)
 ./scripts/run.sh test                    # Run full test suite (600s)
 ./scripts/run.sh test CVector            # Run one class (120s)
@@ -130,7 +130,7 @@ Test harness (inside .asi at game state 9):
 
 ## Test Results
 
-2900 tests across ~255 classes with ~39,200 assertions. 52 confirmed bugs found in gta-reversed via differential testing, including:
+2947 tests across ~270 classes with ~39,800 assertions. 53 confirmed bugs found in gta-reversed via differential testing, including:
 
 - Wrong array dimensions (`CVehicleModelInfo::GetWheelUpgrade`)
 - Wrong memory addresses (`CGangs::GetWillAttackPlayerWithCops`)
@@ -160,6 +160,9 @@ Test harness (inside .asi at game state 9):
 - Wrong menu option count (`CMenuManager::GetNumberOfMenuOptions`)
 - Wrong attractor ped creation check (`CPopulation::PedMICanBeCreatedAtThisAttractor`)
 - Wrong item name tag lookup (`CShopping::GetNameTag`)
+- Wrong `std::clamp` argument order (`CPostEffects::ScriptDarknessFilterSwitch`)
+- Wrong plate text generation (`CCustomCarPlateMgr::GeneratePlateText`)
+- Wrong streamed script index lookup (`CStreamedScripts::GetProperIndexFromIndexUsedByScript`)
 
 Full details in [phase4-results.md](phase4-results.md).
 

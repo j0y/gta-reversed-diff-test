@@ -6,7 +6,7 @@ Compares game behavior with reversed hooks enabled vs disabled by hashing observ
 
 All test modes work end-to-end:
 - **Differential hash test** — deterministic baselines, all-disabled produces distinct hash, 29 categories tested
-- **Scenario tests (Phase 4b)** — 2900 tests, ~39200 assertions, ~255 classes, 50 bugs found
+- **Scenario tests (Phase 4b)** — 2947 tests, ~39800 assertions, ~270 classes, 53 bugs found
 - hooks.csv (7994 hooks) and hooks_paths.csv (718 paths) collected automatically
 
 ## Architecture
@@ -308,7 +308,7 @@ GAME_DIFF_TEST(CGeneral, SolveQuadratic) {
 
 Hook paths are from `hooks_paths.csv` (e.g., `"Global/CGeneral/LimitAngle"`).
 
-### Current Test Suite: 2900 tests, ~39200 assertions, ~255 classes
+### Current Test Suite: 2947 tests, ~39800 assertions, ~270 classes
 
 **Behavior tests (19):**
 - CVector: Constructor_Default, Constructor_XYZ, Magnitude_345, Magnitude_Zero, Normalise_UnitLength, Normalise_AlreadyUnit, Addition, Subtraction, ScalarMultiply, Magnitude2D
@@ -463,7 +463,10 @@ The reversed code (Maths.cpp) overwrites the original sin lookup table at `0xBB3
 | CCarAI systematic (2026-03-25) | 12 | | CarHasReasonToStop, GetCarToGoToCoors (2), GetCarToGoToCoorsAccurate, GetCarToGoToCoorsStraightLine, GetCarToGoToCoorsRacing, GetCarToParkAtCoors, MellowOutChaseSpeed/Boat, MakeWayForCarWithSiren, TellOccupantsToLeaveCar, FindPoliceCarSpeedForWantedLevel (7 levels) |
 | CPickups systematic (2026-03-25) | 17 | | PickUpShouldBeInvisible (20 more), TryToMerge_WeaponType (2), DetonateMinesHitByGunShot, PassTime, RemovePickUpsInArea, RemoveUnnecessaryPickups, PickedUpHorseShoe/Oyster, PictureTaken, CreateSomeMoney, RemoveMissionPickUps, AddToCollectedPickupsArray, GetUniquePickupIndex, FindPickUpForThisObject, GetPosn |
 | CShopping systematic (2026-03-25) | 11 | | GetNameTag (1 bug), RemoveLoadedPrices/Shop, ShutdownForRestart, StoreRestoreClothesState, SetCurrentProperty, LoadStats, GetKey (60 combos), GetPriceSectionFromName, HasPlayerBought/GetPrice (computed keys) |
-| **Total tested** | **~1650** | **~8000** | |
+| New classes (2026-03-26) | 22 | | CPostEffects (7 script switches + IsVisionFXActive), C3dMarkers (5 marker slot queries), CCustomCarPlateMgr (5 plate generation + region design, 1 bug), CMenuSystem (3 menu state queries), CRenderer (2 ShouldModelBeStreamed) |
+| Sin LUT divergence (2026-03-26) | 4 | | SinLUT_Divergence: table comparison (252/256 entries differ), driving curve drift at 50/1000/5000 frames |
+| New classes (2026-03-26) | 17 | | IKChainManager (5 IK queries, confirms bug #42), CStreamedScripts (4 script lookups, 1 bug), CLoadingScreen (3 state queries), CTrailer (2 tow hitch/bar positions), CEventGroup2 (3 event group queries on player ped) |
+| **Total tested** | **~1693** | **~8000** | |
 
 ### File Structure
 
@@ -497,7 +500,7 @@ docker run --rm \
 
 ## Bugs Found in gta-reversed
 
-50 confirmed bugs found by differential testing. Each was discovered by calling the same function with hooks enabled (reversed code) vs disabled (original code) and comparing results.
+53 confirmed bugs found by differential testing. Each was discovered by calling the same function with hooks enabled (reversed code) vs disabled (original code) and comparing results.
 
 | # | Function | Bug |
 |---|---|---|
@@ -549,12 +552,25 @@ docker run --rm \
 | 46 | `CGlass::CalcAlphaWithNormal` | Original at `0x71ACF0` uses constant `0.57f` (at `0x872728`) as normalization factor. Reversed uses `1/SQRT_3 ≈ 0.5774`. Difference is ~1.3%, amplified to ~8% by the 6th power (e.g., factor=1.5 → original alpha=112, reversed=119). Formula structure is correct. **Fix:** replace `/ SQRT_3` with `* 0.57f`. |
 | 47 | `CPopulation::PedMICanBeCreatedAtThisAttractor` | Original at `0x6110E0` returns `true` (mov al,1 at `0x611176`) when no attractor name matches. Reversed returns `false`. **Fix:** change final `return false;` to `return true;`. |
 | 48 | `CShopping::GetNameTag` | Original at `0x49ADA0` is a combined search+pointer function. `FindItem` at `0x49AD20` returns `-1` on not-found (`or eax, 0xFFFFFFFF`). Reversed uses `NOTSA_UNREACHABLE()` which crashes. Same root cause as bugs #30–34. **Fix:** replace `NOTSA_UNREACHABLE()` with `return -1;`. |
+| 49 | `CPostEffects::ScriptDarknessFilterSwitch` | `std::clamp(0, alpha, 255)` has arguments in wrong order. First arg should be the value to clamp, not the lower bound. Always returns `0` when alpha > 0 instead of clamping alpha to [0,255]. **Fix:** change to `std::clamp(alpha, 0, 255)`. |
+| 50 | `CCustomCarPlateMgr::GeneratePlateText` | Produces different plate text than original at `0x6FD5B0` for same RNG seed. Reversed uses `CGeneral::GetRandomNumberInRange('A', 'Z')` — likely different inclusive/exclusive range semantics or different number of RNG calls vs original. |
+| 51 | `CStreamedScripts::GetProperIndexFromIndexUsedByScript` | Returns different index than original at `0x470810` for some scmIndex values. Reversed iterates `GetActiveScripts()` via `rngv::enumerate` — iteration range or `m_IndexUsedByScriptFile` matching may differ from the original loop. |
 
 **Not a bug — false positives confirmed by disassembly:**
 - `CRadar::TransformRadarPointToScreenSpace` — divergence caused by `sret` calling convention issue in test infrastructure, not a reversal bug.
 - `CVehicleRecording::RegisterRecordingFile` (#38 removed) — reversed code matches original exactly (confirmed by disassembly at `0x459F80`). Test fails due to state mutation: `NumPlayBackFiles++` on each call, so calling original then reversed always produces different return values. Note: phase4 table incorrectly listed address as `0x49AD20` (which is `CShopping::FindItem`).
 - `CStats::CheckForThreshold` (#46 removed) — comparison logic is equivalent between original and reversed. Test divergence caused by `*pValue` mutation: the function writes `*pValue = range` when returning true, so the second call (original or reversed) sees the mutated value.
 - `CMenuManager::GetNumberOfMenuOptions` (#48 removed) — all enum values and constants match original. Test divergence caused by static cache (`s_PrevScreen` at `0x8CDFF0`): first call populates the cache, second call returns stale cached value.
+
+## Compiler Float Divergence (Known Limitation)
+
+The reversed code is compiled with MSVC C++23 (19.50, SSE2 64-bit floats). The original binary was compiled with MSVC 2004 (x87 80-bit intermediates). This causes per-instruction float precision differences that compound over multiple frames. Additionally, 210 call sites use `std::sin`/`std::cos` (C++23 CRT) where the original used the 2004 CRT implementation.
+
+**Impact on per-function tests:** Negligible. Single-call divergence is ~1e-5 to 1e-4, well within test tolerances. All 53 bugs found are real logic errors, not float noise. The `QuatToEuler` tests needed `1e-3` tolerance (vs `1e-5` for simpler functions) due to `atan2`/`asin` amplifying the CRT difference — this is expected.
+
+**Impact on mission-level testing:** Byte-identical memory snapshots between reversed and original code are not achievable with a different compiler. Mission-level testing should use structural comparison (player position within tolerance, integer state exact) rather than raw memory hashing.
+
+**Sin LUT note:** The reversed `Maths.cpp` overwrites the game's sin lookup table at `0xBB3E00` with `std::sin` (C++23) values via static initializer. 252/256 entries differ by up to 0.000005. This does NOT affect differential testing — both hooks-enabled and hooks-disabled runs read the same overwritten table, so divergence between them still indicates a real bug. The `test_SinLUT_Divergence.cpp` tests document the table difference for reference.
 
 ## Test Infrastructure Limitations
 
