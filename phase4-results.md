@@ -6,7 +6,7 @@ Compares game behavior with reversed hooks enabled vs disabled by hashing observ
 
 All test modes work end-to-end:
 - **Differential hash test** — deterministic baselines, all-disabled produces distinct hash, 29 categories tested
-- **Scenario tests (Phase 4b)** — 2947 tests, ~39800 assertions, ~270 classes, 53 bugs found
+- **Scenario tests (Phase 4b)** — 3105 tests, ~41500 assertions, ~299 classes, 55 bugs found
 - hooks.csv (7994 hooks) and hooks_paths.csv (718 paths) collected automatically
 
 ## Architecture
@@ -308,7 +308,7 @@ GAME_DIFF_TEST(CGeneral, SolveQuadratic) {
 
 Hook paths are from `hooks_paths.csv` (e.g., `"Global/CGeneral/LimitAngle"`).
 
-### Current Test Suite: 2947 tests, ~39800 assertions, ~270 classes
+### Current Test Suite: 3105 tests, ~41500 assertions, ~299 classes
 
 **Behavior tests (19):**
 - CVector: Constructor_Default, Constructor_XYZ, Magnitude_345, Magnitude_Zero, Normalise_UnitLength, Normalise_AlreadyUnit, Addition, Subtraction, ScalarMultiply, Magnitude2D
@@ -500,7 +500,7 @@ docker run --rm \
 
 ## Bugs Found in gta-reversed
 
-53 confirmed bugs found by differential testing. Each was discovered by calling the same function with hooks enabled (reversed code) vs disabled (original code) and comparing results.
+55 confirmed bugs found by differential testing. Each was discovered by calling the same function with hooks enabled (reversed code) vs disabled (original code) and comparing results.
 
 | # | Function | Bug |
 |---|---|---|
@@ -555,6 +555,10 @@ docker run --rm \
 | 49 | `CPostEffects::ScriptDarknessFilterSwitch` | `std::clamp(0, alpha, 255)` has arguments in wrong order. First arg should be the value to clamp, not the lower bound. Always returns `0` when alpha > 0 instead of clamping alpha to [0,255]. **Fix:** change to `std::clamp(alpha, 0, 255)`. |
 | 50 | `CCustomCarPlateMgr::GeneratePlateText` | Produces different plate text than original at `0x6FD5B0` for same RNG seed. Reversed uses `CGeneral::GetRandomNumberInRange('A', 'Z')` — likely different inclusive/exclusive range semantics or different number of RNG calls vs original. |
 | 51 | `CStreamedScripts::GetProperIndexFromIndexUsedByScript` | Returns different index than original at `0x470810` for some scmIndex values. Reversed iterates `GetActiveScripts()` via `rngv::enumerate` — iteration range or `m_IndexUsedByScriptFile` matching may differ from the original loop. |
+| 52 | `CGridRef::GetArtistBugstarID` | Original at `0x71D650` returns pointer into `GridRefList[x][y]` for valid coordinates. Reversed returns `{}` (nullptr) — `return {};` at GridRef.cpp:53 instead of `return GridRefList[x][y];`. All 100 valid cells (10x10) return wrong value. |
+| 53 | `CCurves::CalcCurvePoint` | Speed output has spurious `(1-time)` factor — reversed uses `speedFactor = (1.0f - time) * totalDist_Time` but original at `0x43C900` uses `speedFactor = totalDist_Time`. The `(1-time)` is only used as the Lerp interpolation weight, not as a speed multiplier. Error is time-dependent (0% at t=0, 50% at t=0.5, 90% at t=0.9). Position output matches. **Fix:** remove `(1.0f - time) *` from speedFactor. |
+| 54 | `CSpecialPlateHandler::Add` | Uses `auto plateEntry = m_plateTextEntries[m_nCount]` (copy by value) instead of `auto& plateEntry` (reference). The `strcpy_s` writes to a stack temporary, never to the actual array. `Find` never finds added entries. **Fix:** change `auto` to `auto&`. |
+| 55 | `CStreamingInfo::InList` | Original at `0x407560` only checks `m_NextIndex != -1`. Reversed adds extra `m_PrevIndex != -1` check (marked `/* notsa => */` in source). Items with only `m_NextIndex` set are "in list" for original but "not in list" for reversed. |
 
 **Not a bug — false positives confirmed by disassembly:**
 - `CRadar::TransformRadarPointToScreenSpace` — divergence caused by `sret` calling convention issue in test infrastructure, not a reversal bug.

@@ -110,6 +110,24 @@ GAME_DIFF_TEST(CGeneral, GetRadianAngleBetweenPoints_Diff) {
     }
 }
 
+// --- GetNodeHeadingFromVector ---
+
+GAME_DIFF_TEST(CGeneral, GetNodeHeadingFromVector) {
+    float cases[][2] = {
+        {1,0}, {0,1}, {-1,0}, {0,-1},
+        {1,1}, {-1,1}, {1,-1}, {-1,-1},
+        {3,4}, {-5,12}, {0.001f,1000.0f}, {1000.0f,0.001f},
+        {0.707f,0.707f}, {-0.707f,0.707f}
+    };
+    for (auto& c : cases) {
+        uint32 orig, rev;
+        { HookDisableGuard guard("Global/CGeneral/GetNodeHeadingFromVector");
+          orig = CGeneral::GetNodeHeadingFromVector(c[0], c[1]); }
+        rev = CGeneral::GetNodeHeadingFromVector(c[0], c[1]);
+        EXPECT_EQ(orig, rev);
+    }
+}
+
 // --- GetRandomNumberInRange<int32> (overloaded) ---
 
 GAME_DIFF_TEST(CGeneral, GetRandomNumberInRange_Int) {
