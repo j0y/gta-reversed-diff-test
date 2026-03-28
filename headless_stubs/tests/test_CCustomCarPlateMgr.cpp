@@ -22,14 +22,14 @@ GAME_DIFF_TEST(CCustomCarPlateMgr, GeneratePlateText) {
     char origBuf[9] = {};
     char revBuf[9] = {};
 
-    // Seed RNG and generate via original
-    srand(42);
+    // Seed both exe and DLL CRTs — original inlines rand() to exe's CRT at 0x821B1E
+    SeedBothRng(42);
     bool origOk;
     { HookDisableGuard guard("Global/CCustomCarPlateMgr/GeneratePlateText");
       origOk = CCustomCarPlateMgr::GeneratePlateText(origBuf, 8); }
 
     // Same seed, generate via reversed
-    srand(42);
+    SeedBothRng(42);
     bool revOk = CCustomCarPlateMgr::GeneratePlateText(revBuf, 8);
 
     EXPECT_EQ(origOk, revOk);
@@ -42,11 +42,11 @@ GAME_DIFF_TEST(CCustomCarPlateMgr, GeneratePlateText_MultipleSeeds) {
         char origBuf[9] = {};
         char revBuf[9] = {};
 
-        srand(seed);
+        SeedBothRng(seed);
         { HookDisableGuard guard("Global/CCustomCarPlateMgr/GeneratePlateText");
           CCustomCarPlateMgr::GeneratePlateText(origBuf, 8); }
 
-        srand(seed);
+        SeedBothRng(seed);
         CCustomCarPlateMgr::GeneratePlateText(revBuf, 8);
 
         EXPECT_EQ(strcmp(origBuf, revBuf), 0);

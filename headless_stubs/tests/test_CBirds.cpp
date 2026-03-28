@@ -88,8 +88,8 @@ GAME_DIFF_TEST(CBirds, Shutdown) {
 GAME_DIFF_TEST(CBirds, CreateNumberOfBirds) {
     BirdStateSaver saver;
 
-    // Seed RNG for deterministic results
-    srand(42);
+    // Seed both exe and DLL CRTs — original inlines rand() to exe's CRT at 0x821B1E
+    SeedBothRng(42);
     CBirds::Init();
 
     CVector start = TheCamera.GetPosition() + CVector(20.0f, 0.0f, 15.0f);
@@ -106,7 +106,7 @@ GAME_DIFF_TEST(CBirds, CreateNumberOfBirds) {
     }
 
     // Reset and run original with same seed
-    srand(42);
+    SeedBothRng(42);
     CBirds::Init();
     { HookDisableGuard guard("Global/CBirds/CreateNumberOfBirds");
       CBirds::CreateNumberOfBirds(start, target, 3, eBirdsBiome::BIOME_NORMAL, false); }

@@ -16,19 +16,23 @@ GAME_DIFF_TEST(CLoadingScreen, IsActive) {
 }
 
 // --- GetClockTime ---
+// GetClockTime is private after upstream refactor (#1237).
+// Call via direct function pointer at original address.
+using GetClockTimeFn = float(__cdecl*)(bool);
+static auto getClockTimeFn = reinterpret_cast<GetClockTimeFn>(0x590280);
 
 GAME_DIFF_TEST(CLoadingScreen, GetClockTime_Default) {
     float orig, rev;
     { HookDisableGuard guard("Global/CLoadingScreen/GetClockTime");
-      orig = CLoadingScreen::GetClockTime(true); }
-    rev = CLoadingScreen::GetClockTime(true);
+      orig = getClockTimeFn(true); }
+    rev = getClockTimeFn(true);
     EXPECT_NEAR(orig, rev, 1e-3f);
 }
 
 GAME_DIFF_TEST(CLoadingScreen, GetClockTime_WithPause) {
     float orig, rev;
     { HookDisableGuard guard("Global/CLoadingScreen/GetClockTime");
-      orig = CLoadingScreen::GetClockTime(false); }
-    rev = CLoadingScreen::GetClockTime(false);
+      orig = getClockTimeFn(false); }
+    rev = getClockTimeFn(false);
     EXPECT_NEAR(orig, rev, 1e-3f);
 }

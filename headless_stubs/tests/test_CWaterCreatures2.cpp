@@ -8,6 +8,11 @@
 #include "TestFramework.h"
 #include "WaterCreatureManager_c.h"
 
+// CanAddWaterCreatureAtPos is private after upstream refactor (#1266).
+// Call via direct function pointer at original address.
+using CanAddFn = bool(__thiscall*)(WaterCreatureManager_c*, int32, CVector);
+static auto canAddFn = reinterpret_cast<CanAddFn>(0x6E3F40);
+
 // --- CanAddWaterCreatureAtPos with ocean positions ---
 
 GAME_DIFF_TEST(WaterCreatureManager, CanAddWaterCreatureAtPos_OceanDeep) {
@@ -16,56 +21,52 @@ GAME_DIFF_TEST(WaterCreatureManager, CanAddWaterCreatureAtPos_OceanDeep) {
     for (int type = 0; type < WaterCreatureManager_c::NUM_WATER_CREATURE_INFOS; type++) {
         bool orig, rev;
         { HookDisableGuard guard("Global/WaterCreatureManager_c/CanAddWaterCreatureAtPos");
-          orig = g_waterCreatureMan.CanAddWaterCreatureAtPos(type, oceanPos); }
-        rev = g_waterCreatureMan.CanAddWaterCreatureAtPos(type, oceanPos);
+          orig = canAddFn(&g_waterCreatureMan, type, oceanPos); }
+        rev = canAddFn(&g_waterCreatureMan, type, oceanPos);
         EXPECT_EQ(orig, rev);
     }
 }
 
 GAME_DIFF_TEST(WaterCreatureManager, CanAddWaterCreatureAtPos_InlandDry) {
-    // Inland position — no water, should generally return false
     CVector inlandPos(2488.0f, -1666.0f, 50.0f);
     for (int type = 0; type < WaterCreatureManager_c::NUM_WATER_CREATURE_INFOS; type++) {
         bool orig, rev;
         { HookDisableGuard guard("Global/WaterCreatureManager_c/CanAddWaterCreatureAtPos");
-          orig = g_waterCreatureMan.CanAddWaterCreatureAtPos(type, inlandPos); }
-        rev = g_waterCreatureMan.CanAddWaterCreatureAtPos(type, inlandPos);
+          orig = canAddFn(&g_waterCreatureMan, type, inlandPos); }
+        rev = canAddFn(&g_waterCreatureMan, type, inlandPos);
         EXPECT_EQ(orig, rev);
     }
 }
 
 GAME_DIFF_TEST(WaterCreatureManager, CanAddWaterCreatureAtPos_SantaMariaBeach) {
-    // Near Santa Maria Beach — shallow coastal water
     CVector beachPos(300.0f, -1850.0f, -5.0f);
     for (int type = 0; type < WaterCreatureManager_c::NUM_WATER_CREATURE_INFOS; type++) {
         bool orig, rev;
         { HookDisableGuard guard("Global/WaterCreatureManager_c/CanAddWaterCreatureAtPos");
-          orig = g_waterCreatureMan.CanAddWaterCreatureAtPos(type, beachPos); }
-        rev = g_waterCreatureMan.CanAddWaterCreatureAtPos(type, beachPos);
+          orig = canAddFn(&g_waterCreatureMan, type, beachPos); }
+        rev = canAddFn(&g_waterCreatureMan, type, beachPos);
         EXPECT_EQ(orig, rev);
     }
 }
 
 GAME_DIFF_TEST(WaterCreatureManager, CanAddWaterCreatureAtPos_Origin) {
-    // World origin — edge case
     CVector originPos(0.0f, 0.0f, 0.0f);
     for (int type = 0; type < WaterCreatureManager_c::NUM_WATER_CREATURE_INFOS; type++) {
         bool orig, rev;
         { HookDisableGuard guard("Global/WaterCreatureManager_c/CanAddWaterCreatureAtPos");
-          orig = g_waterCreatureMan.CanAddWaterCreatureAtPos(type, originPos); }
-        rev = g_waterCreatureMan.CanAddWaterCreatureAtPos(type, originPos);
+          orig = canAddFn(&g_waterCreatureMan, type, originPos); }
+        rev = canAddFn(&g_waterCreatureMan, type, originPos);
         EXPECT_EQ(orig, rev);
     }
 }
 
 GAME_DIFF_TEST(WaterCreatureManager, CanAddWaterCreatureAtPos_MapEdge) {
-    // Far map edge — extreme coordinates
     CVector edgePos(3000.0f, 3000.0f, -20.0f);
     for (int type = 0; type < WaterCreatureManager_c::NUM_WATER_CREATURE_INFOS; type++) {
         bool orig, rev;
         { HookDisableGuard guard("Global/WaterCreatureManager_c/CanAddWaterCreatureAtPos");
-          orig = g_waterCreatureMan.CanAddWaterCreatureAtPos(type, edgePos); }
-        rev = g_waterCreatureMan.CanAddWaterCreatureAtPos(type, edgePos);
+          orig = canAddFn(&g_waterCreatureMan, type, edgePos); }
+        rev = canAddFn(&g_waterCreatureMan, type, edgePos);
         EXPECT_EQ(orig, rev);
     }
 }
