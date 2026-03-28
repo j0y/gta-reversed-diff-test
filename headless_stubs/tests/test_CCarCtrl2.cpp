@@ -9,6 +9,7 @@
 #include "ScenarioHelpers.h"
 #include "CarCtrl.h"
 
+
 // --- Differential tests ---
 
 GAME_DIFF_TEST(CCarCtrl2, IsAnyoneParking) {
@@ -71,11 +72,13 @@ GAME_DIFF_TEST(CCarCtrl2, FindMaxSteerAngle_Moving) {
 }
 
 GAME_DIFF_TEST(CCarCtrl2, ChooseCarModelToLoad) {
-    // Test with a few car group IDs
+    // Test with a few car group IDs.
+    // Must seed both exe and DLL CRTs — the original ChooseCarModelToLoad at
+    // 0x421900 inlines rand() calls to the exe's CRT at 0x821B1E.
     for (int32 group = 0; group < 5; group++) {
-        srand(42 + group);
+        SeedBothRng(42 + group);
         int32 rev = CCarCtrl::ChooseCarModelToLoad(group);
-        srand(42 + group);
+        SeedBothRng(42 + group);
         int32 orig;
         { HookDisableGuard guard("Global/CCarCtrl/ChooseCarModelToLoad");
           orig = CCarCtrl::ChooseCarModelToLoad(group); }

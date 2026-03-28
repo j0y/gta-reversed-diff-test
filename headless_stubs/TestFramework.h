@@ -311,6 +311,33 @@ auto CallOriginal(const char* hookPath, Fn fn, Args&&... args) -> decltype(fn(st
 #define GAME_DIFF_TEST(Class, Name) GAME_TEST(Class, Diff_##Name)
 
 // ---------------------------------------------------------------------------
+// Dual-CRT rand() seeding
+// ---------------------------------------------------------------------------
+//
+// The exe has its own statically-linked CRT with a separate rand() state at
+// 0x821B1E.  The DLL's srand() only seeds the DLL's CRT.  For differential
+// tests that compare original (exe) code against reversed (DLL) code, we must
+// seed BOTH CRTs so the same random sequence is produced.
+//
+// Exe's srand is at 0x821B11:
+//   call __getptd
+//   mov  ecx, [esp+4]
+//   mov  [eax+0x14], ecx
+//   ret
+
+inline void ExeSrand(unsigned int seed) {
+    using SrandFn = void(__cdecl*)(unsigned int);
+    static auto fn = reinterpret_cast<SrandFn>(0x821B11);
+    fn(seed);
+}
+
+// Seed both exe and DLL CRT rand states.
+inline void SeedBothRng(unsigned int seed) {
+    srand(seed);
+    ExeSrand(seed);
+}
+
+// ---------------------------------------------------------------------------
 // Direct-call helpers for struct-returning functions (sret workaround)
 // ---------------------------------------------------------------------------
 //

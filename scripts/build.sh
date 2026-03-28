@@ -64,6 +64,8 @@ git apply /src/patches/08-disable-spdlog.patch
 echo "  Applied 08-disable-spdlog.patch (spdlog OFF, gut Logging ctor/Create)"
 git apply /src/patches/09-tls-elimination.patch
 echo "  Applied 09-tls-elimination.patch (General.h thread_local, MemoryMgr operator new/delete)"
+git apply /src/patches/12-fix-int-rng-reciprocal.patch
+echo "  Applied 12-fix-int-rng-reciprocal.patch (GetRandomNumberInRange<int>: use RAND_MAX_INT_RECIPROCAL)"
 
 # Fix case-sensitivity mismatches: CMakeLists.txt uses TitleCase but actual dirs are lowercase
 echo "--- Fixing case-sensitive directory names ---"

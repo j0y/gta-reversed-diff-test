@@ -4,12 +4,13 @@
 #include "StdInc.h"
 #include "TestFramework.h"
 
+
 GAME_DIFF_TEST(CCarCtrl, ChooseBoatModel) {
     // RNG-dependent — seed first for determinism
-    srand(42);
+    SeedBothRng(42);
     int32 orig, rev;
-    { HookDisableGuard guard("Global/CCarCtrl/ChooseBoatModel"); srand(42); orig = CCarCtrl::ChooseBoatModel(); }
-    srand(42);
+    { HookDisableGuard guard("Global/CCarCtrl/ChooseBoatModel"); SeedBothRng(42); orig = CCarCtrl::ChooseBoatModel(); }
+    SeedBothRng(42);
     rev = CCarCtrl::ChooseBoatModel();
     EXPECT_EQ(orig, rev);
 }
@@ -60,12 +61,12 @@ GAME_DIFF_TEST(CCarCtrl, ChooseGangCarModel_AllGangs) {
 // --- ChooseCarModelToLoad with deterministic RNG ---
 
 GAME_DIFF_TEST(CCarCtrl, ChooseCarModelToLoad_Deterministic) {
-    srand(42);
+    SeedBothRng(42);
     int32 orig;
     { HookDisableGuard guard("Global/CCarCtrl/ChooseCarModelToLoad");
-      srand(42);
+      SeedBothRng(42);
       orig = CCarCtrl::ChooseCarModelToLoad(0); }
-    srand(42);
+    SeedBothRng(42);
     int32 rev = CCarCtrl::ChooseCarModelToLoad(0);
     EXPECT_EQ(orig, rev);
 }

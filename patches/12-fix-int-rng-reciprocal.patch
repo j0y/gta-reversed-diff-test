@@ -1,0 +1,40 @@
+diff --git a/source/game_sa/General.h b/source/game_sa/General.h
+index ff6f27f..7eb0c86 100644
+--- a/source/game_sa/General.h
++++ b/source/game_sa/General.h
+@@ -11,7 +11,7 @@
+ 
+ //! If you see this value USE THE INTEGER VERSION of `GetRandomNumberInRange`
+ //! It's very important to do that, because the int version will is exclusive
+-//constexpr float RAND_MAX_INT_RECIPROCAL = 1.0f / static_cast<float>(RAND_MAX + 1); // 1.0 / 32768.0 == 1.0 / (RAND_MAX + 1) = 0.0000305175781
++constexpr float RAND_MAX_INT_RECIPROCAL = 1.0f / static_cast<float>(RAND_MAX + 1); // 1.0 / 32768.0 == 1.0 / (RAND_MAX + 1) = 0.0000305175781
+ 
+ //! If you see this value, USE THE FLOAT VERSION of `GetRandomNumberInRange`
+ constexpr float RAND_MAX_FLOAT_RECIPROCAL = 1.0f / static_cast<float>(RAND_MAX);   // 1.0 / 32767.0 == 1.0 / RAND_MAX       = 0.0000305185094
+@@ -116,9 +116,25 @@ namespace CGeneral { // More like `Math` (Or `Meth`, given how bad the code is,
+      * @param max Maximum value. Must be greater than min.
+      * @return A pseudo-random number between min and max, exclusive [min, max).
+      */
++    // x87 FPU helper matching original at 0x407180 — 80-bit precision with
++    // fisttp truncation avoids SSE 32-bit rounding mismatches.
++    inline int32 _GetRandomNumberInRange_x87(int32 min_val, int32 max_val) {
++        static const float recip = 1.0f / 32768.0f;
++        int32 rnd = static_cast<int32>(GetRandomNumber());
++        int32 range = max_val - min_val;
++        int32 scaled;
++        __asm {
++            fild    dword ptr [rnd]
++            fmul    dword ptr [recip]
++            fimul   dword ptr [range]
++            fisttp  dword ptr [scaled]
++        }
++        return min_val + scaled;
++    }
++
+     template<std::integral T>
+     inline T GetRandomNumberInRange(T min, T max) {
+-        return static_cast<T>(GetRandomNumberInRange<float>(static_cast<float>(min), static_cast<float>(max) - 1.f)); // substraction in floating point because integer might underflow (if unsigned)
++        return static_cast<T>(_GetRandomNumberInRange_x87(static_cast<int32>(min), static_cast<int32>(max)));
+     }
+ 
+     /**
