@@ -129,15 +129,28 @@ GAME_DIFF_TEST(CGeneral, GetNodeHeadingFromVector) {
 }
 
 // --- GetRandomNumberInRange<int32> (overloaded) ---
+// NOTE: The template is inline so HookDisableGuard has no effect — both paths
+// would execute the same inlined code. Call the original at 0x407180 directly.
 
 GAME_DIFF_TEST(CGeneral, GetRandomNumberInRange_Int) {
-    // Seed RNG deterministically for this test
-    srand(42);
-    int32 orig, rev;
-    { HookDisableGuard guard("Global/CGeneral/GetRandomNumberInRange<int32>-");
-      srand(42);
-      orig = CGeneral::GetRandomNumberInRange(0, 100); }
-    srand(42);
-    rev = CGeneral::GetRandomNumberInRange(0, 100);
-    EXPECT_EQ(orig, rev);
+    using GetRNIR_int = int32(__cdecl*)(int32, int32);
+    constexpr uint32 ADDR = 0x407180;
+    auto origFn = reinterpret_cast<GetRNIR_int>(ADDR);
+
+    // Disable the hook so 0x407180 runs the original game code
+    HookDisableGuard guard("Global/CGeneral/GetRandomNumberInRange<int32>-");
+
+    struct { int32 min; int32 max; } cases[] = {
+        {0, 5}, {0, 10}, {0, 23}, {0, 100}, {1, 50}, {0, 2},
+    };
+
+    for (auto [mn, mx] : cases) {
+        for (int seed = 0; seed < 100; seed++) {
+            srand(seed);
+            int32 orig = origFn(mn, mx);
+            srand(seed);
+            int32 rev = CGeneral::GetRandomNumberInRange(mn, mx);
+            EXPECT_EQ(orig, rev);
+        }
+    }
 }
