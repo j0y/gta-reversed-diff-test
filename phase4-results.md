@@ -6,7 +6,7 @@ Compares game behavior with reversed hooks enabled vs disabled by hashing observ
 
 All test modes work end-to-end:
 - **Differential hash test** — deterministic baselines, all-disabled produces distinct hash, 29 categories tested
-- **Scenario tests (Phase 4b)** — 3105 tests, ~41500 assertions, ~299 classes, 55 bugs found
+- **Scenario tests (Phase 4b)** — 3105 tests, ~41500 assertions, ~299 classes, 54 bugs found
 - hooks.csv (7994 hooks) and hooks_paths.csv (718 paths) collected automatically
 
 ## Architecture
@@ -465,7 +465,7 @@ The reversed code (Maths.cpp) overwrites the original sin lookup table at `0xBB3
 | CShopping systematic (2026-03-25) | 11 | | GetNameTag (1 bug), RemoveLoadedPrices/Shop, ShutdownForRestart, StoreRestoreClothesState, SetCurrentProperty, LoadStats, GetKey (60 combos), GetPriceSectionFromName, HasPlayerBought/GetPrice (computed keys) |
 | New classes (2026-03-26) | 22 | | CPostEffects (7 script switches + IsVisionFXActive), C3dMarkers (5 marker slot queries), CCustomCarPlateMgr (5 plate generation + region design, 1 bug), CMenuSystem (3 menu state queries), CRenderer (2 ShouldModelBeStreamed) |
 | Sin LUT divergence (2026-03-26) | 4 | | SinLUT_Divergence: table comparison (252/256 entries differ), driving curve drift at 50/1000/5000 frames |
-| New classes (2026-03-26) | 17 | | IKChainManager (5 IK queries, confirms bug #42), CStreamedScripts (4 script lookups, 1 bug), CLoadingScreen (3 state queries), CTrailer (2 tow hitch/bar positions), CEventGroup2 (3 event group queries on player ped) |
+| New classes (2026-03-26) | 17 | | IKChainManager (5 IK queries, confirms bug #42), CStreamedScripts (4 script lookups), CLoadingScreen (3 state queries), CTrailer (2 tow hitch/bar positions), CEventGroup2 (3 event group queries on player ped) |
 | **Total tested** | **~1693** | **~8000** | |
 
 ### File Structure
@@ -554,17 +554,17 @@ docker run --rm \
 | 48 | `CShopping::GetNameTag` | Original at `0x49ADA0` is a combined search+pointer function. `FindItem` at `0x49AD20` returns `-1` on not-found (`or eax, 0xFFFFFFFF`). Reversed uses `NOTSA_UNREACHABLE()` which crashes. Same root cause as bugs #30–34. **Fix:** replace `NOTSA_UNREACHABLE()` with `return -1;`. |
 | 49 | `CPostEffects::ScriptDarknessFilterSwitch` | `std::clamp(0, alpha, 255)` has arguments in wrong order. First arg should be the value to clamp, not the lower bound. Always returns `0` when alpha > 0 instead of clamping alpha to [0,255]. **Fix:** change to `std::clamp(alpha, 0, 255)`. |
 | 50 | `CCustomCarPlateMgr::GeneratePlateText` | Produces different plate text than original at `0x6FD5B0` for same RNG seed. Reversed uses `CGeneral::GetRandomNumberInRange('A', 'Z')` — likely different inclusive/exclusive range semantics or different number of RNG calls vs original. |
-| 51 | `CStreamedScripts::GetProperIndexFromIndexUsedByScript` | Returns different index than original at `0x470810` for some scmIndex values. Reversed iterates `GetActiveScripts()` via `rngv::enumerate` — iteration range or `m_IndexUsedByScriptFile` matching may differ from the original loop. |
-| 52 | `CGridRef::GetArtistBugstarID` | Original at `0x71D650` returns pointer into `GridRefList[x][y]` for valid coordinates. Reversed returns `{}` (nullptr) — `return {};` at GridRef.cpp:53 instead of `return GridRefList[x][y];`. All 100 valid cells (10x10) return wrong value. |
-| 53 | `CCurves::CalcCurvePoint` | Speed output has spurious `(1-time)` factor — reversed uses `speedFactor = (1.0f - time) * totalDist_Time` but original at `0x43C900` uses `speedFactor = totalDist_Time`. The `(1-time)` is only used as the Lerp interpolation weight, not as a speed multiplier. Error is time-dependent (0% at t=0, 50% at t=0.5, 90% at t=0.9). Position output matches. **Fix:** remove `(1.0f - time) *` from speedFactor. |
-| 54 | `CSpecialPlateHandler::Add` | Uses `auto plateEntry = m_plateTextEntries[m_nCount]` (copy by value) instead of `auto& plateEntry` (reference). The `strcpy_s` writes to a stack temporary, never to the actual array. `Find` never finds added entries. **Fix:** change `auto` to `auto&`. |
-| 55 | `CStreamingInfo::InList` | Original at `0x407560` only checks `m_NextIndex != -1`. Reversed adds extra `m_PrevIndex != -1` check (marked `/* notsa => */` in source). Items with only `m_NextIndex` set are "in list" for original but "not in list" for reversed. |
+| 51 | `CGridRef::GetArtistBugstarID` | Original at `0x71D650` returns pointer into `GridRefList[x][y]` for valid coordinates. Reversed returns `{}` (nullptr) — `return {};` at GridRef.cpp:53 instead of `return GridRefList[x][y];`. All 100 valid cells (10x10) return wrong value. |
+| 52 | `CCurves::CalcCurvePoint` | Speed output has spurious `(1-time)` factor — reversed uses `speedFactor = (1.0f - time) * totalDist_Time` but original at `0x43C900` uses `speedFactor = totalDist_Time`. The `(1-time)` is only used as the Lerp interpolation weight, not as a speed multiplier. Error is time-dependent (0% at t=0, 50% at t=0.5, 90% at t=0.9). Position output matches. **Fix:** remove `(1.0f - time) *` from speedFactor. |
+| 53 | `CSpecialPlateHandler::Add` | Uses `auto plateEntry = m_plateTextEntries[m_nCount]` (copy by value) instead of `auto& plateEntry` (reference). The `strcpy_s` writes to a stack temporary, never to the actual array. `Find` never finds added entries. **Fix:** change `auto` to `auto&`. |
+| 54 | `CStreamingInfo::InList` | Original at `0x407560` only checks `m_NextIndex != -1`. Reversed adds extra `m_PrevIndex != -1` check (marked `/* notsa => */` in source). Items with only `m_NextIndex` set are "in list" for original but "not in list" for reversed. |
 
 **Not a bug — false positives confirmed by disassembly:**
 - `CRadar::TransformRadarPointToScreenSpace` — divergence caused by `sret` calling convention issue in test infrastructure, not a reversal bug.
 - `CVehicleRecording::RegisterRecordingFile` (#38 removed) — reversed code matches original exactly (confirmed by disassembly at `0x459F80`). Test fails due to state mutation: `NumPlayBackFiles++` on each call, so calling original then reversed always produces different return values. Note: phase4 table incorrectly listed address as `0x49AD20` (which is `CShopping::FindItem`).
 - `CStats::CheckForThreshold` (#46 removed) — comparison logic is equivalent between original and reversed. Test divergence caused by `*pValue` mutation: the function writes `*pValue = range` when returning true, so the second call (original or reversed) sees the mutated value.
 - `CMenuManager::GetNumberOfMenuOptions` (#48 removed) — all enum values and constants match original. Test divergence caused by static cache (`s_PrevScreen` at `0x8CDFF0`): first call populates the cache, second call returns stale cached value.
+- `CStreamedScripts::GetProperIndexFromIndexUsedByScript` (#51 removed) — `GetActiveScripts()` is `m_aScripts | take(m_nCountOfScripts)`, a contiguous prefix with no filtering. The `rngv::enumerate` index always equals the raw slot index, so the reversed code produces identical results to the original's all-82-slot loop. Test confirms 0 mismatches across 20 SCM indices.
 
 ## Compiler Float Divergence (Known Limitation)
 

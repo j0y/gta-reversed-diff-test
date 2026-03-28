@@ -162,8 +162,6 @@ Test harness (inside .asi at game state 9):
 - Wrong item name tag lookup (`CShopping::GetNameTag`)
 - Wrong `std::clamp` argument order (`CPostEffects::ScriptDarknessFilterSwitch`)
 - Wrong plate text generation (`CCustomCarPlateMgr::GeneratePlateText`)
-- Wrong streamed script index lookup (`CStreamedScripts::GetProperIndexFromIndexUsedByScript`)
-
 Full details in [phase4-results.md](phase4-results.md).
 
 ## Documentation

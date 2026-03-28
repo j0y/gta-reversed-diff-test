@@ -43,19 +43,11 @@ GAME_DIFF_TEST(CStreamedScripts, FindStreamedScript_KnownScripts) {
 // --- GetProperIndexFromIndexUsedByScript ---
 
 GAME_DIFF_TEST(CStreamedScripts, GetProperIndexFromIndexUsedByScript) {
-    // Test a range of SCM indices
-    // Only test indices that are likely valid (small values)
-    int mismatches = 0;
     for (int16 idx = 0; idx < 20; idx++) {
         int16 orig, rev;
         { HookDisableGuard guard("Scripts/CStreamedScripts/GetProperIndexFromIndexUsedByScript");
           orig = CTheScripts::StreamedScripts.GetProperIndexFromIndexUsedByScript(idx); }
         rev = CTheScripts::StreamedScripts.GetProperIndexFromIndexUsedByScript(idx);
-        if (orig != rev) mismatches++;
-    }
-    if (mismatches > 0) {
-        char msg[128];
-        _snprintf(msg, sizeof(msg), "GetProperIndexFromIndexUsedByScript: %d/20 indices differ", mismatches);
-        GetTestContext().RecordFailure(__FILE__, __LINE__, msg);
+        EXPECT_EQ(orig, rev);
     }
 }
