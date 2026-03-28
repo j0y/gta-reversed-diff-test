@@ -162,6 +162,8 @@ Test harness (inside .asi at game state 9):
 - Wrong item name tag lookup (`CShopping::GetNameTag`)
 - Wrong `std::clamp` argument order (`CPostEffects::ScriptDarknessFilterSwitch`)
 - Wrong plate text generation (`CCustomCarPlateMgr::GeneratePlateText`)
+- Pursuit counter desync causing dangling pointers (`CWanted::CanCopJoinPursuit`)
+
 Full details in [phase4-results.md](phase4-results.md).
 
 ## Documentation

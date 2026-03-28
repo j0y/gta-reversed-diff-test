@@ -6,7 +6,7 @@ Compares game behavior with reversed hooks enabled vs disabled by hashing observ
 
 All test modes work end-to-end:
 - **Differential hash test** — deterministic baselines, all-disabled produces distinct hash, 29 categories tested
-- **Scenario tests (Phase 4b)** — 3105 tests, ~41500 assertions, ~299 classes, 54 bugs found
+- **Scenario tests (Phase 4b)** — 3105 tests, ~41500 assertions, ~299 classes, 55 bugs found
 - hooks.csv (7994 hooks) and hooks_paths.csv (718 paths) collected automatically
 
 ## Architecture
@@ -558,6 +558,7 @@ docker run --rm \
 | 52 | `CCurves::CalcCurvePoint` | Speed output has spurious `(1-time)` factor — reversed uses `speedFactor = (1.0f - time) * totalDist_Time` but original at `0x43C900` uses `speedFactor = totalDist_Time`. The `(1-time)` is only used as the Lerp interpolation weight, not as a speed multiplier. Error is time-dependent (0% at t=0, 50% at t=0.5, 90% at t=0.9). Position output matches. **Fix:** remove `(1.0f - time) *` from speedFactor. |
 | 53 | `CSpecialPlateHandler::Add` | Uses `auto plateEntry = m_plateTextEntries[m_nCount]` (copy by value) instead of `auto& plateEntry` (reference). The `strcpy_s` writes to a stack temporary, never to the actual array. `Find` never finds added entries. **Fix:** change `auto` to `auto&`. |
 | 54 | `CStreamingInfo::InList` | Original at `0x407560` only checks `m_NextIndex != -1`. Reversed adds extra `m_PrevIndex != -1` check (marked `/* notsa => */` in source). Items with only `m_NextIndex` set are "in list" for original but "not in list" for reversed. |
+| 55 | `CWanted::CanCopJoinPursuit` (method) | Passes real `m_nCopsInPursuit` by reference to the static overload, but original at `0x562FB0` copies both the array AND the counter to the stack. Static `RemovePursuitCop` decrements the real counter while only clearing the local array copy — causes count/array desync, stale pointers accumulate in `m_pCopsInPursuit`, eventual crash dereferencing freed `CCopPed`. **Fix:** copy counter to local before passing: `auto copsCount = m_nCopsInPursuit;` |
 
 **Not a bug — false positives confirmed by disassembly:**
 - `CRadar::TransformRadarPointToScreenSpace` — divergence caused by `sret` calling convention issue in test infrastructure, not a reversal bug.
@@ -570,7 +571,7 @@ docker run --rm \
 
 The reversed code is compiled with MSVC C++23 (19.50, SSE2 64-bit floats). The original binary was compiled with MSVC 2004 (x87 80-bit intermediates). This causes per-instruction float precision differences that compound over multiple frames. Additionally, 210 call sites use `std::sin`/`std::cos` (C++23 CRT) where the original used the 2004 CRT implementation.
 
-**Impact on per-function tests:** Negligible. Single-call divergence is ~1e-5 to 1e-4, well within test tolerances. All 53 bugs found are real logic errors, not float noise. The `QuatToEuler` tests needed `1e-3` tolerance (vs `1e-5` for simpler functions) due to `atan2`/`asin` amplifying the CRT difference — this is expected.
+**Impact on per-function tests:** Negligible. Single-call divergence is ~1e-5 to 1e-4, well within test tolerances. All 55 bugs found are real logic errors, not float noise. The `QuatToEuler` tests needed `1e-3` tolerance (vs `1e-5` for simpler functions) due to `atan2`/`asin` amplifying the CRT difference — this is expected.
 
 **Impact on mission-level testing:** Byte-identical memory snapshots between reversed and original code are not achievable with a different compiler. Mission-level testing should use structural comparison (player position within tolerance, integer state exact) rather than raw memory hashing.
 
