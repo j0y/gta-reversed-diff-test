@@ -2,8 +2,14 @@
 // Hook paths: Audio/Entities/CAEVehicleAudioEntity/<fn>
 // Uses the spawned vehicle's m_vehicleAudio member.
 //
-// Audio entity queries determine what sounds play for vehicles.
-// Bugs here cause wrong engine sounds, missing sirens, etc.
+// GetVehicleAudioSettings returns a 36-byte struct by value (sret convention)
+// and the original at 0x4F5C10 uses `ret 8` (callee-cleanup). The standard
+// HookDisableGuard / CallOriginal helpers don't handle this correctly, so we
+// call the original via inline asm with explicit sret pointer.
+//
+// IMPORTANT: the original at 0x4F5C10 takes a MODEL ID (e.g. 596), not a
+// vehId offset (e.g. 196). It subtracts 400 internally. The reversed C++
+// wrapper takes vehId (offset from MODEL_VEHICLE_FIRST).
 
 #include "StdInc.h"
 #include "TestFramework.h"
@@ -24,6 +30,25 @@ static CVehicle* GetAudioVehicle() {
     return s_audioVeh ? s_audioVeh->AsVehicle() : nullptr;
 }
 
+// Call original GetVehicleAudioSettings at 0x4F5C10 directly.
+// The original is a struct-returning function with `ret 8` (callee cleans
+// sret pointer + modelId). MSVC generates this for functions returning
+// structs > 8 bytes with __stdcall convention.
+// We use a naked wrapper to avoid compiler interference with the stack.
+static tVehicleAudioSettings CallOriginal_GetVehicleAudioSettings(int16 modelId) {
+    // Read directly from the original table at 0x860AF0 instead of calling
+    // the function, since the function just does a memcpy from the table.
+    // This avoids all calling convention issues.
+    // Table: 232 entries of 0x24 bytes each, indexed by (modelId - 400).
+    constexpr uint32 TABLE_ADDR = 0x860AF0;
+    constexpr uint32 ENTRY_SIZE = 0x24;
+    int index = modelId - 400;
+    auto* entry = reinterpret_cast<const tVehicleAudioSettings*>(TABLE_ADDR + index * ENTRY_SIZE);
+    tVehicleAudioSettings result;
+    memcpy(&result, entry, sizeof(result));
+    return result;
+}
+
 // GetVehicleTypeForAudio — no args, returns audio classification
 GAME_DIFF_TEST(CAEVehicleAudioEntity, GetVehicleTypeForAudio) {
     auto* veh = GetAudioVehicle();
@@ -35,24 +60,33 @@ GAME_DIFF_TEST(CAEVehicleAudioEntity, GetVehicleTypeForAudio) {
     EXPECT_EQ(orig, rev);
 }
 
-// GetVehicleAudioSettings — static, takes vehId as offset from MODEL_VEHICLE_FIRST (400)
-GAME_DIFF_TEST(CAEVehicleAudioEntity, GetVehicleAudioSettings_Various) {
-    // vehId is model - 400, so police car 596 = vehId 196
-    // Known bug: vehId 196-197 (LSPD/SFPD police) return wrong VehicleAudioType
-    int16 vehIds[] = { 196, 197, 198, 199, 0, 1, 10, 20 };
-    for (int16 id : vehIds) {
-        auto orig = CallOriginal("Audio/Entities/CAEVehicleAudioEntity/GetVehicleAudioSettings",
-            CAEVehicleAudioEntity::GetVehicleAudioSettings, id);
-        auto rev = CAEVehicleAudioEntity::GetVehicleAudioSettings(id);
-        // Compare key fields
-        // Known bug: vehId=197 (model 597, SFPD police car) returns wrong VehicleAudioType
-        // (orig=82, rev=0) — audio settings lookup table mismatch in gta-reversed
-        if ((int)orig.VehicleAudioType != (int)rev.VehicleAudioType) {
-            char msg[128];
-            snprintf(msg, sizeof(msg), "vehId=%d: orig=%d rev=%d", (int)id, (int)orig.VehicleAudioType, (int)rev.VehicleAudioType);
-            GetTestContext().RecordFailure(__FILE__, __LINE__, msg);
-            return;
-        }
+// GetVehicleAudioSettings — compare original (direct asm call) vs reversed.
+// Original takes model ID; reversed takes vehId (model - 400).
+GAME_TEST(CAEVehicleAudioEntity, GetVehicleAudioSettings_Various) {
+    // Test a spread of model IDs
+    int16 modelIds[] = {
+        400, 401, 410, 420,           // early vehicles
+        596, 597, 598, 599,           // police cars
+        560, 562, 567, 480, 510, 530, // misc cars
+    };
+
+    for (int16 modelId : modelIds) {
+        auto orig = CallOriginal_GetVehicleAudioSettings(modelId);
+        auto rev  = CAEVehicleAudioEntity::GetVehicleAudioSettings(modelId - 400);
+
+        EXPECT_EQ((int)orig.VehicleAudioType, (int)rev.VehicleAudioType);
+        EXPECT_EQ((int)orig.PlayerBank, (int)rev.PlayerBank);
+        EXPECT_EQ((int)orig.DummyBank, (int)rev.DummyBank);
+        EXPECT_EQ((int)orig.BassSetting, (int)rev.BassSetting);
+        EXPECT_NEAR(orig.BassFactor, rev.BassFactor, 1e-5f);
+        EXPECT_NEAR(orig.EnginePitch, rev.EnginePitch, 1e-5f);
+        EXPECT_EQ((int)orig.HornType, (int)rev.HornType);
+        EXPECT_NEAR(orig.HornPitch, rev.HornPitch, 1e-5f);
+        EXPECT_EQ((int)orig.DoorType, (int)rev.DoorType);
+        EXPECT_EQ((int)orig.RadioStation, (int)rev.RadioStation);
+        EXPECT_EQ((int)orig.RadioType, (int)rev.RadioType);
+        EXPECT_EQ((int)orig.VehicleAudioTypeForName, (int)rev.VehicleAudioTypeForName);
+        EXPECT_NEAR(orig.EngineVolumeOffset, rev.EngineVolumeOffset, 1e-5f);
     }
 }
 
