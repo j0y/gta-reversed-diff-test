@@ -6,7 +6,7 @@ Compares game behavior with reversed hooks enabled vs disabled by hashing observ
 
 All test modes work end-to-end:
 - **Differential hash test** — deterministic baselines, all-disabled produces distinct hash, 29 categories tested
-- **Scenario tests (Phase 4b)** — 3105 tests, ~41500 assertions, ~299 classes, 55 bugs found
+- **Scenario tests (Phase 4b)** — 3284 tests, ~42000 assertions, ~310 classes, 60 bugs found
 - hooks.csv (7994 hooks) and hooks_paths.csv (718 paths) collected automatically
 
 ## Architecture
@@ -466,7 +466,21 @@ The reversed code (Maths.cpp) overwrites the original sin lookup table at `0xBB3
 | New classes (2026-03-26) | 22 | | CPostEffects (7 script switches + IsVisionFXActive), C3dMarkers (5 marker slot queries), CCustomCarPlateMgr (5 plate generation + region design, 1 bug), CMenuSystem (3 menu state queries), CRenderer (2 ShouldModelBeStreamed) |
 | Sin LUT divergence (2026-03-26) | 4 | | SinLUT_Divergence: table comparison (252/256 entries differ), driving curve drift at 50/1000/5000 frames |
 | New classes (2026-03-26) | 17 | | IKChainManager (5 IK queries, confirms bug #42), CStreamedScripts (4 script lookups), CLoadingScreen (3 state queries), CTrailer (2 tow hitch/bar positions), CEventGroup2 (3 event group queries on player ped) |
-| **Total tested** | **~1693** | **~8000** | |
+| cBuoyancy (2026-03-30) | 14 | | PreCalcSetup (player + vehicle), CalcBuoyancyForce (in-water, not-in-water, high-immersion), FindWaterLevel (single + 5 offsets), FindWaterLevelNorm, SimpleSumBuoyancyData (colliding, above-water, boat mode, flip-vector), ProcessBuoyancy (player + vehicle) |
+| CTrafficLights (2026-03-30) | 6 | | ShouldCarStopForLight (3 variants + 3 positions), ShouldCarStopForBridge, LightForPeds validity, IsMITrafficLight (runtime ModelIndices) |
+| CPlayerInfo/CWeapon (2026-03-30) | 9 | | GetPos_Hook, GetSpeed_Hook, EvaluateCarPosition (single + 3 distances), SetLastTargetVehicle, EvaluateTargetForHeatSeekingMissile (4 variants: normal, out-of-tolerance, plane-priority, preferred-target — 1 bug found) |
+| CPed6 (2026-03-30) | 13 | | GetLocalDirection (8 dirs player + 4 dirs spawned, 1 bug found), CanStrafeOrMouseControl (player + spawned), CanBeDeletedEvenInVehicle (player + spawned), DoesLOSBulletHitPed (3 heights), GetPedTalking, IsPlayingHandSignal, IsPedShootable (player + spawned) |
+| CEntity/CVehicle/CAutomobile (2026-03-30) | 9 | | CalculateBBProjection (player + vehicle + ped, float branch-sensitivity on peds), FindTriggerPointCoors (player + vehicle), CarHasRoof, GetPlaneOrdnanceRateOfFire, GetTowHitchPos |
+| CVehicle8 (2026-03-30) | 15 | | HeightAboveCeiling (3 flight models × boundary values), ProcessWheelRotation (normal + spinning + fixed + directions), CarHasRoof, GetPlaneOrdnanceRateOfFire, GetTowHitchPos, GetTowBarPos |
+| CCullZones3 (2026-03-30) | 6 | | FindAttributesForCoors (player + 6 positions), FindTunnelAttributesForCoors (4 positions), FindMirrorAttributesForCoors (4 positions), Cam1stPersonForPlayer, DoINeedToLoadCollision |
+| CLoadedCarGroup2 (2026-03-30) | 8 | | SortBasedOnUsage, PickLeastUsedModel (global + empty + crafted multi-model with manipulated refcount/usage — 1 bug found, confirmed by disassembly at 0x611E90) |
+| CTimeCycle/CCamera (2026-03-30) | 9 | | GetAmbientRed/Green/Blue_Obj, CalcColoursForPoint (player + 4 positions), Using1stPersonWeaponMode, Find3rdPersonQuickAimPitch (1 bug found, confirmed by disassembly at 0x50AD40), ConeCastCollisionResolve (near-player + same-point) |
+| CPedIK2 (2026-03-30) | 7 | | GetWorldMatrix (player head frame), PointGunInDirection (forward + angled + with-normalize), RotateTorsoForArm (in-front + to-side), PointGunAtPosition |
+| MiscQueries (2026-03-30) | 7 | | CalcScreenCoors (player + 3 positions), CalcHorizonCoors, FindImmediateDetectionRange (11 crime types), DoesPlayerControlThisZone (10 zones), CanPlayerStartAGangWarHere (10 zones), FindWindModifier (3 positions) |
+| MiscQueries2 (2026-03-30) | 7 | | IsHeadOnCollision (3 impact angles), CameraToIgnoreThisObject, CanIKReachThisTarget (4 positions), GetOriginalCompPosition (5 component IDs) |
+| CPad5 (2026-03-30) | 29 | | GetAccelerate, GetBrake, GetSprint, GetTarget, GetWeapon, GetHorn, GetLookLeft/Right/Behind, GetExitVehicle, GetEnterTargeting, GetForceCameraBehindPlayer, GetAnaloguePad (4 dirs), AimWeapon (2 axes), CarGun (3), CycleWeapon (2), GetDisplayVitalStats, GetTouchedTimeDelta, ExitVehicle/CollectPickup JustDown |
+| CPlayerPed4 (2026-03-30) | 1 | | ProcessControl look-direction block (forced MODE_FOLLOWPED + 90° rotation — 1 bug found, confirmed by disassembly at 0x60F371, 5 instances of RadiansToDegrees/DegreesToRadians confusion) |
+| **Total tested** | **~1833** | **~8400** | |
 
 ### File Structure
 
@@ -500,7 +514,7 @@ docker run --rm \
 
 ## Bugs Found in gta-reversed
 
-55 confirmed bugs found by differential testing. Each was discovered by calling the same function with hooks enabled (reversed code) vs disabled (original code) and comparing results.
+60 confirmed bugs found by differential testing. Each was discovered by calling the same function with hooks enabled (reversed code) vs disabled (original code) and comparing results.
 
 | # | Function | Bug |
 |---|---|---|
@@ -559,6 +573,11 @@ docker run --rm \
 | 53 | `CSpecialPlateHandler::Add` | Uses `auto plateEntry = m_plateTextEntries[m_nCount]` (copy by value) instead of `auto& plateEntry` (reference). The `strcpy_s` writes to a stack temporary, never to the actual array. `Find` never finds added entries. **Fix:** change `auto` to `auto&`. |
 | 54 | `CStreamingInfo::InList` | Original at `0x407560` only checks `m_NextIndex != -1`. Reversed adds extra `m_PrevIndex != -1` check (marked `/* notsa => */` in source). Items with only `m_NextIndex` set are "in list" for original but "not in list" for reversed. |
 | 55 | `CWanted::CanCopJoinPursuit` (method) | Passes real `m_nCopsInPursuit` by reference to the static overload, but original at `0x562FB0` copies both the array AND the counter to the stack. Static `RemovePursuitCop` decrements the real counter while only clearing the local array copy — causes count/array desync, stale pointers accumulate in `m_pCopsInPursuit`, eventual crash dereferencing freed `CCopPed`. **Fix:** copy counter to local before passing: `auto copsCount = m_nCopsInPursuit;` |
+| 56 | `CWeapon::EvaluateTargetForHeatSeekingMissile` | `CCollision::DistToLine` called with `origin + aimingDir` (1-unit segment) instead of `origin + lineDir` (250-unit segment). The `lineDir = aimingDir * 250.f` is computed but never used. With a 1-unit line, targets beyond 1 unit get clamped to the endpoint, inflating `potentialTargetDistToLine` and wrongly triggering the `-1` rejection. Valid targets rejected, scores inflated for close targets. **Fix:** change `origin + aimingDir` to `origin + lineDir` in `DistToLine` call. |
+| 57 | `CPed::GetLocalDirection` | **Two bugs:** (a) `RadiansToDegrees(45.0f)` converts 45 *radians* to degrees (~2578°) instead of adding a 45° offset in radians — should be `DegreesToRadians(45.0f)` (π/4 ≈ 0.785). (b) `(uint8)RadiansToDegrees(angle)` truncates angles > 255° due to uint8 overflow — angles 256-360° wrap to 0-104°, producing wrong quadrant. Original at `0x5DEF60` uses `(int)RWRAD2DEG(angle)`. Affects which dodge/flinch direction peds choose for incoming damage. **Fix:** `RadiansToDegrees(45.0f)` → `DegreesToRadians(45.0f)`, `(uint8)` → `(int32)`. |
+| 58 | `CLoadedCarGroup::PickLeastUsedModel` | Copy-paste bug in `rng::min` comparator: `GetMI(modelA)` used for both `miA` and `miB`. Comparator always compares a model against itself (`X < X` = always false), so `rng::min` returns the first element regardless of actual refcount/usage. Original at `0x611E90` (confirmed by disassembly) correctly tracks best `m_nRefCount` at `[ebx+8]` (primary) and best `m_nTimesUsed` at `[ebx+0x50]` (secondary) across loop iterations. Affects vehicle variety — game always spawns the first loaded car instead of the least-used one. **Fix:** `GetMI(modelA)` → `GetMI(modelB)` for `miB`. |
+| 59 | `CCamera::Find3rdPersonQuickAimPitch` | Wrong sign in angle formula. Original at `0x50AD40` (confirmed by disassembly: `fpatan` → `fadd [vertAngle]` → `fchs`) computes `-(atan(opposite/aspect) + vertAngle)`. Reversed used `-(vertAngle - atan(opposite/aspect))`, flipping the `atan` term's sign. Difference: ~0.21 radians (~12°) in 3rd-person quick-aim pitch, directly affecting weapon aiming accuracy. **Fix:** change `m_fVerticalAngle - std::atan(...)` to `m_fVerticalAngle + std::atan(...)`. |
+| 60 | `CPlayerPed::ProcessControl` (look direction) | **5 instances** of `RadiansToDegrees(N)` where `DegreesToRadians(N)` is needed (lines 1159-1162 in PlayerPed.cpp). Original at `0x60F371`/`0x60F386`/`0x60F39B`/`0x60F3B0` (confirmed by disassembly) uses radian constants: 0.5236 (`DegreesToRadians(30)`), 5.7596 (`DegreesToRadians(330)`), 2.618 (`DegreesToRadians(150)`), 3.665 (`DegreesToRadians(210)`). Reversed produces values ~57× too large (1718°, 18907°, 8594°, 12032°), making all conditions always-false. The entire 3rd-person follow-camera look-direction block becomes dead code — player never looks toward the camera direction when walking. **Fix:** `RadiansToDegrees(N)` → `DegreesToRadians(N.0f)` in all 5 instances. Found by source code pattern scan for `RadiansToDegrees` called with degree-valued constants. |
 
 **Not a bug — false positives confirmed by disassembly:**
 - `CRadar::TransformRadarPointToScreenSpace` — divergence caused by `sret` calling convention issue in test infrastructure, not a reversal bug.
