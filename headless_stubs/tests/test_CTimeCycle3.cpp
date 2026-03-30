@@ -105,11 +105,58 @@ GAME_DIFF_TEST(CTimeCycle3, Diff_Using1stPersonWeaponMode) {
 // Trig math: tan(FOV/2), atan(opposite/aspect), applies to vertical angle.
 
 GAME_DIFF_TEST(CTimeCycle3, Diff_Find3rdPersonQuickAimPitch) {
-    float orig, rev;
-    { HookDisableGuard guard("Global/CCamera/Find3rdPersonQuickAimPitch");
-      orig = TheCamera.Find3rdPersonQuickAimPitch(); }
-    rev = TheCamera.Find3rdPersonQuickAimPitch();
-    EXPECT_NEAR(orig, rev, 1e-3f);
+    float savedCHairY = CCamera::m_f3rdPersonCHairMultY;
+
+    // Original function bytes at 0x50AD40 (78 bytes, from disassembly)
+    // Copy to VirtualAlloc'd executable memory to bypass hook system entirely
+    static const uint8_t origCode[] = {
+        0x0F, 0xB6, 0x41, 0x59,                         // movzx eax, byte ptr [ecx+0x59]
+        0x69, 0xC0, 0x38, 0x02, 0x00, 0x00,             // imul eax, eax, 0x238
+        0xD9, 0x84, 0x08, 0x28, 0x02, 0x00, 0x00,       // fld dword ptr [eax+ecx+0x228]
+        0xD8, 0x0D, 0x8C, 0x8B, 0x85, 0x00,             // fmul dword ptr [0x858b8c]
+        0x03, 0xC1,                                       // add eax, ecx
+        0xD8, 0x0D, 0xEC, 0x95, 0x85, 0x00,             // fmul dword ptr [0x8595ec]
+        0xD9, 0xF2,                                       // fptan
+        0xDD, 0xD8,                                       // fstp st(0)
+        0xD9, 0x05, 0x8C, 0x8B, 0x85, 0x00,             // fld dword ptr [0x858b8c]
+        0xD8, 0x25, 0x10, 0xEC, 0xB6, 0x00,             // fsub dword ptr [0xb6ec10]
+        0xDC, 0xC0,                                       // fadd st(0), st(0)
+        0xDE, 0xC9,                                       // fmulp st(1)
+        0xD9, 0x05, 0x24, 0x86, 0x85, 0x00,             // fld dword ptr [0x858624]
+        0xD8, 0x35, 0xA4, 0xEF, 0xC3, 0x00,             // fdiv dword ptr [0xc3efa4]
+        0xDE, 0xC9,                                       // fmulp st(1)
+        0xD9, 0xE8,                                       // fld1
+        0xD9, 0xF3,                                       // fpatan
+        0xD8, 0x80, 0x20, 0x02, 0x00, 0x00,             // fadd dword ptr [eax+0x220]
+        0xD9, 0xE0,                                       // fchs
+        0xC3                                              // ret
+    };
+
+    // Allocate executable memory and copy original code
+    void* execMem = VirtualAlloc(nullptr, sizeof(origCode), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+    if (!execMem) return;
+    memcpy(execMem, origCode, sizeof(origCode));
+
+    float testValues[] = { 0.5f, 0.3f, 0.0f };
+    for (float chy : testValues) {
+        *reinterpret_cast<float*>(0xB6EC10) = chy;
+
+        // Call the copied original function (thiscall: ecx = this)
+        float origResult;
+        CCamera* pCam = &TheCamera;
+        void* pFunc = execMem;
+        __asm {
+            mov ecx, pCam
+            call pFunc
+            fstp dword ptr [origResult]
+        }
+
+        float revResult = TheCamera.Find3rdPersonQuickAimPitch();
+        EXPECT_NEAR(origResult, revResult, 1e-3f);
+    }
+
+    VirtualFree(execMem, 0, MEM_RELEASE);
+    *reinterpret_cast<float*>(0xB6EC10) = savedCHairY;
 }
 
 // ── CCamera::ConeCastCollisionResolve ──
