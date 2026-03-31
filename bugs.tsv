@@ -1,0 +1,113 @@
+address	function	bug	source
+0x410470	ColStore::SetIfCollisionIsRequiredReducedBB	Missing guard for (area!=0 && !interior) case. Original truth table: (0,F)=SET, (0,T)=RET, (!=0,T)=SET, (!=0,F)=RET. Reversed only guards (!area && interior). Fix: if(!!ms_nRequiredCollisionArea != m_bInterior) return;	Collision/ColStore.cpp
+0x412970	CCollision::DistToMathematicalLine	Line 456 divides dot² by pMagSq instead of lMagSq. Formula should be |p|² - (p·l)²/|l|², reversed computes |p|² - (p·l)²/|p|². Wrong denominator.	Collision/Collision.cpp:456
+0x413960	CCollision::ProcessDiscCollision	Line 1244 misplaced parenthesis: std::abs((expr >= threshold)) applies abs to boolean instead of float. Original: fabs(componentSum) >= thickness.	Collision/Collision.cpp:1244
+0x416450	CCollision::ProcessSphereSphere	depth computed with unclamped touchDist in original; reversed clamps to 0 first (line ~1516), giving smaller depth when spheres significantly overlap (dist < spB.radius).	Collision/Collision.cpp:~1516
+0x415950	CCollision::Closest3	NOTSA_UNREACHABLE where original has real implementation finding closest of 3 points to a given point.	Collision/Collision.cpp
+0x418100	CCollision::ClosestPointsOnPoly	NOTSA_UNREACHABLE where original calls ClosestPointOnLine 3 times for each triangle edge.	Collision/Collision.cpp
+0x418150	CCollision::ClosestPointOnPoly	NOTSA_UNREACHABLE where original calls ClosestPointOnLine 3 times then Closest3.	Collision/Collision.cpp
+0x415620	CCollision::RayPolyPOP	NOTSA_UNREACHABLE where original has real implementation.	Collision/Collision.cpp
+0x411140	ColStore::AddColSlot	Two issues: (1) strcmp/strncmp used but original uses _stricmp/_strnicmp (case-insensitive). (2) m_nModelIdStart initialized to -1 but original uses 0x7FFF (SHRT_MAX).	Collision/ColStore.cpp
+0x6C3B00	cBuoyancy::SimpleCalcBuoyancy	Line 399: AddSplashParticles call passes vecAllPoints[i][2] and vecAllPoints[i+1][2] but original passes vecAllPoints[2][i] and vecAllPoints[2][i+1]. Array indices swapped.	Buoyancy.cpp:399
+0x4AD070	EventBuildingCollision::AffectsPed	Two issues: (1) Original handles EVENT_POTENTIAL_WALK_INTO_BUILDING (type 0x3c) with building+dotProduct check; reversed replaces with assert. (2) Reversed adds incorrect dotProduct <= -0.5f guard before TASK_COMPLEX_CLIMB check; original has no such guard.	Events/EventCollision.cpp
+0x544C40	Physical::ApplyAirResistance	Uses IsSubBike() (checks m_nVehicleSubType) instead of IsBike() (checks m_nVehicleType at offset 0x594). Wrong type check.	Physical.cpp
+0x5448B0	Physical::CanPhysicalBeDamaged	WEAPON_MOLOTOV case: original checks both bExplosionProof AND bFireProof; reversed only checks bFireProof. Missing bExplosionProof check.	Physical.cpp
+0x509AE0	Cam::WellBufferMe	speedSoFar += abs(abs(...)) always increases. Original conditionally adds/subtracts based on sign of (fullSpeedStep - speedSoFar). Camera buffering breaks when speed needs to decrease.	Cam.cpp:~41
+0x50A480	Camera::ApplyVehicleCameraTweaks	Missing m_nCurrentTweakModelIndex = camTweak.ModelID after match (asm: mov [ecx+0xd54], edx). Early-return guard never succeeds, InitCameraVehicleTweaks runs every frame.	Camera.cpp:~298
+0x50AD40	Camera::Find3rdPersonQuickAimPitch	Phase4 #59: vertAngle - atan(...) should be vertAngle + atan(...). Original: fadd then fchs = -(atan+vert). Reversed has minus, flipping atan sign ~12° error.	Camera.cpp:393
+0x50B5D0	Camera::ProcessFade	When m_fFadeDuration==0: uses += instead of = for alpha. FADE_OUT adds 0.0 (no-op), FADE_IN adds 255.0 (accumulates). Should be assignment.	Camera.cpp
+0x50B6D0	Camera::ProcessMusicFade	FADE_IN case checks m_nMusicFadingDirection but original checks m_nFadeInOutFlag (offset 0xC30 vs 0xC3A). Wrong variable in switch.	Camera.cpp
+0x50BAB0	Camera::RestoreWithJumpCut	Missing 3 unconditional assignments: m_bCameraJustRestored=true, m_bEnable1rstPersonCamCntrlsScript=false, m_bAllow1rstPersonWeaponsCamera=false.	Camera.cpp
+0x50BDA0	Camera::SetCameraDirectlyBehindForFollowPed_ForAPed_CamOnAString	Uses GetHeading()=atan2(-fwd.x,fwd.y) but original calls GetATanOfXY(fwd.x,fwd.y). Negated x argument.	Camera.cpp:~730
+0x50BFB0	Camera::SetNewPlayerWeaponMode	m_nMinZoom and m_nMaxZoom swapped. ASM stores maxZoom param to m_nMinZoom field and vice versa.	Camera.cpp:~780
+0x50C070	Camera::SetPercentAlongCutScene	Copies entire CCam struct into active cam via auto& instead of using separate reference to other cam.	Camera.cpp:~837
+0x50C100	Camera::SetRwCamera	Missing call to CMBlur::MotionBlurOpen(camera) after m_mViewMatrix.Attach.	Camera.cpp
+0x50C160	Camera::SetZoomValueFollowPedScript	Default case sets zoom=0.25f; original only sets flag without changing zoom for unknown modes.	Camera.cpp
+0x50C1B0	Camera::SetZoomValueCamStringScript	Checks GetStatus()==STATUS_SIMPLE but original checks GetType()==ENTITY_TYPE_VEHICLE.	Camera.cpp:~881
+0x50C360	Camera::UpdateTargetEntity	Uses PEDSTATE_ARRESTED(74) but original uses 0x3f=63 (PEDSTATE_TAXI_PASSENGER).	Camera.cpp:~947
+0x50CC50	Camera::SetColVarsPed	Default calls SetCamCollisionVarDataSet(0); original returns early without updating.	Camera.cpp
+0x50CD30	Camera::CameraGenericModeSpecialCases	Stores targetPed into m_pExtraEntity but original stores taskHold->m_pEntityToHold (held entity).	Camera.cpp:~1182
+0x50CE80	Camera::IsExtraEntityToIgnore	notsa::contains checks all 2 array slots; original only checks first m_nExtraEntitiesCount entries.	Camera.cpp
+0x50CEF0	Camera::ResetDuckingSystem	Uses Magnitude() (sqrt) but original compares squared magnitude against 1e-6.	Camera.cpp:~1256
+0x50E490	Cam::Init	m_fMaxRoleAngle=DegreesToRadians(20.0f) but original stores DegreesToRadians(2.0f). 10x too large.	Cam.cpp
+0x50E760	IdleCam::FinaliseIdleCamera	Uses TransformPoint but original calls TransformVector (no translation component).	IdleCam.cpp:~296
+0x50F3F0	Cam::Process_Editor	std::max should be std::min for upper alpha clamp; uses 85deg instead of ~89.5deg.	Cam.cpp
+0x511B50	Cam::Process_Rocket	ClipBeta always adds/subtracts 360deg instead of conditional 3-way clamp.	Cam.cpp
+0x513BE0	Cam::Process_Cam_TwoPlayer_Separate_Cars_TopDown	m_vecUp.y set to m_vecSource.y but should be cos(0.4f).	Cam.cpp
+0x513E40	Cam::Get_TwoPlayer_AimVector	Wrong component multiplication for right/up vectors in aim calculation.	Cam.cpp
+0x517EA0	Cam::Process_1stPerson	Uses CrossProduct where original uses vector addition/subtraction.	Cam.cpp:~584
+0x51D470	Cam::Process_Fixed	Missing m_vecSource.x assignment after ConeCastCollisionResolve. Only .y and .z written.	Cam.cpp:~827
+0x705660	ShadowCamera::InvertRaster	Missing rwRENDERSTATEZTESTENABLE=FALSE before texture/blend state setup.	ShadowCamera.cpp
+0x5B3040	ColAccel::addIPLEntity	CColAccelIPLEntry struct has m_nLodIndex (offset 0x00) and m_nEntityIndex (offset 0x04) swapped vs original. Disasm confirms original stores entityIndex at 0x00 and lodIndex at 0x04. Self-consistent in reversed code but cacheIPLSection applies m_bUnderwater to entity instead of LOD entity. Fix: swap field order in ColAccel.h.	Collision/ColAccel.h
+0x6D10E0	Vehicle::CustomCarPlate_TextureCreate	Reversed calls SetCustomCarPlateText(text) but original passes nullptr (push 0 at 0x6D1119). Should clear plate text after creating texture.	Entity/Vehicle/Vehicle.cpp
+0x6D14D0	Vehicle::AddPassenger(Fixed-Seat)	Missing ApplyTurnForceToOccupantOnEntry(passenger) call. Original applies turn force in both overloads; reversed only in Auto-Seat (0x6D13A0).	Entity/Vehicle/Vehicle.cpp
+0x6D1F30	Vehicle::CanPedStepOutCar	When bIgnoreSpeedUpright=true, returns SquaredMagnitude() > 0.0004F but original returns true when <= 0.0004F. Comparison inverted. Confirmed: jne at 0x6D1FCE.	Entity/Vehicle/Vehicle.cpp
+0x6D21F0	Vehicle::ProcessCarAlarm	m_nAlarmState = ts should be m_nAlarmState -= ts. Confirmed: sub esi,eax at 0x6D2244. Alarm never counts down.	Entity/Vehicle/Vehicle.cpp
+0x6D2570	Vehicle::ActivateBombWhenEntered	Missing null check before RegisterReference(m_pWhoDetonatedMe). Original checks m_pWhoInstalledBombOnMe != 0 first.	Entity/Vehicle/Vehicle.cpp
+0x6D2600	Vehicle::HeightAboveCeiling	Missing switch case FLIGHT_MODEL_RC (2). Original routes both BARON (1) and RC (2) to same branch.	Entity/Vehicle/Vehicle.cpp
+0x6D2740	Vehicle::ApplyBoatWaterResistance	Wrong constant in z<=0 branch: uses 0.5F but original uses 0.0F (at 0x859060).	Entity/Vehicle/Vehicle.cpp
+0x6D2980	Vehicle::UpdateClumpAlpha	When curr >= 255 and !bFadeOut: returns 255 but original leaves value unchanged.	Entity/Vehicle/Vehicle.cpp
+0x6D2D50	Vehicle::AddWheelDirtAndWater	Uses m_nPieceTypeB (offset 0x24) but original uses m_nSurfaceTypeB (offset 0x23) for IsSand/CreatesWheelSpray. Confirmed: byte [esi+0x23] at 0x6D2D60.	Entity/Vehicle/Vehicle.cpp
+0x6D3210	Vehicle::ClearVehicleUpgradeFlags	Case 17 (stereo): checks RadioType != AE_RT_CIVILIAN but original checks == AE_RT_CIVILIAN. Condition inverted.	Entity/Vehicle/Vehicle.cpp
+0x6D3630	Vehicle::RemoveUpgrade	Passes &upgradeId (pointer) to RpClumpForAllAtomics but original passes upgradeId value directly. Callback compares as integer.	Entity/Vehicle/Vehicle.cpp
+0x6D3700	Vehicle::CreateReplacementAtomic	Shared helper sets ATOMIC_ALPHA flag but original 0x6D3700 does NOT set it. Flag only in CreateUpgradeAtomic.	Entity/Vehicle/Vehicle.cpp
+0x6D39E0	Vehicle::RemoveReplacementUpgrade	Passes &frameOfUpgrade to RemoveObjectsCB but original passes pointer-to-zero.	Entity/Vehicle/Vehicle.cpp
+0x6D3CB0	Vehicle::ReleasePickedUpEntityWithWinch	Calls GetRope(GetRopeID()) but original calls FindRope first to convert ID to index. Should be GetRope(FindRope(GetRopeID())). Same bug in 0x6D3CF0, 0x6D3D10, 0x6D3D30.	Entity/Vehicle/Vehicle.cpp
+0x6D3CD0	Vehicle::PickUpEntityWithWinch	Same FindRope bug as 0x6D3CB0. Also reversed is one-line stub but original has ~60 lines of inline logic.	Entity/Vehicle/Vehicle.cpp
+0x6D4290	Vehicle::GetPlaneGunsPosition	RUSTLER gun offset applied inside IsZero guard only. Original applies it outside, so offset added to both dummy and hardcoded positions.	Entity/Vehicle/Vehicle.cpp
+0x6D4D30	Vehicle::FirePlaneGuns	For double guns, original negates X of planeGunPosMS for second gun (mirrored). Reversed fires both from same position.	Entity/Vehicle/Vehicle.cpp
+0x6D5110	Vehicle::FireUnguidedMissile	Original negates X of ordnance position for second missile. Reversed fires both from same position.	Entity/Vehicle/Vehicle.cpp
+0x6D6C00	Vehicle::ProcessWheel	Engine braking checks brake > 500.0f but original checks m_pHandlingData->m_fMass < 500.0f. Wrong variable.	Entity/Vehicle/Vehicle.cpp
+0x6D7BC0	Vehicle::FindTyreNearestPoint	Non-bike !isRight branch: FRONT_LEFT/REAR_LEFT return values swapped vs original.	Entity/Vehicle/Vehicle.cpp
+0x6DAF00	Vehicle::BladeColSectorList	Checks IsTypePed() but original checks NOT ped. Rotor damage fires for wrong entity type.	Entity/Vehicle/Vehicle.cpp
+0x6DD130	Vehicle::DoBoatSplashes	(1) baseVel uses GetRight().y/.z but original uses GetForward() for all. Copy-paste. (2) size = v12+0.75f*0.1f should be (v12+0.75f)*0.1f.	Entity/Vehicle/Vehicle.cpp
+0x6DE240	Vehicle::AddExhaustParticles	vecParticleVelocity z set to moveSpeed.z*30 or Forward.z but original always z=0.	Entity/Vehicle/Vehicle.cpp
+0x6E1720	Vehicle::DoHeadLightReflection	Else branch: reversed has extra "if (right)" guard before DoHeadLightReflectionSingle(matrix, true). Original calls unconditionally.	Entity/Vehicle/Vehicle.cpp
+0x6E2B40	Vehicle::Destructor	Range-for over {m_pOverheatParticle, m_pFireParticle, m_pDustParticle} iterates copies. particle=nullptr is no-op. Original sets each member to 0 after DestroyFxSystem.	Entity/Vehicle/Vehicle.cpp
+0x455560	Ped::PedCanPickUpPickUp	Inverted return: returns FindActiveTaskFromList (truthy when task found) but original returns true when neither task found.	Entity/Ped/Ped.cpp
+0x4590F0	Ped::CreateDeadPedMoney	m_nMoneyCount > 10 should be > 9 (>= 10). Off-by-one.	Entity/Ped/Ped.cpp
+0x4591D0	Ped::CreateDeadPedWeaponPickups	(1) Ammo uses * 2 but original does >> 1 (divide by 2), 4x intended. (2) Missing ClearWeapons() at end.	Entity/Ped/Ped.cpp
+0x5DEF60	Ped::GetLocalDirection	RadiansToDegrees(45.0f) should be DegreesToRadians(45.0f). Adds ~2578 instead of pi/4.	Entity/Ped/Ped.cpp
+0x5DF150	Ped::CanBeDeletedEvenInVehicle	Returns false for PED_UNKNOWN(0) instead of PED_GAME_MISSION(3). Wrong enum value.	Entity/Ped/Ped.cpp
+0x5DF290	Ped::SetAmmo	std::max should be std::min. Clip ammo clamped up instead of down to total.	Entity/Ped/Ped.cpp
+0x5DF510	Ped::GetBikeRidingSkill	std::min(1000.f) should be std::min(1.0f). Stat/1000 not clamped properly.	Entity/Ped/Ped.cpp
+0x5E0130	Ped::Dress	Missing m_nModelIndex = -1 (0xFFFF) before SetModelIndex. Original sets to -1 so SetModelIndex detects change.	Entity/Ped/Ped.cpp
+0x5E0360	Ped::DropEntityThatThisPedIsHolding	Reads m_pEntityToHold AFTER DropEntity() which nulls it via ClearReference. Original saves pointer before. Entity never deleted.	Entity/Ped/Ped.cpp
+0x5E0730	Ped::CanSeeEntity	Missing FixRadianAngle on m_fCurrentRotation before delta. Original normalizes both angles.	Entity/Ped/Ped.cpp
+0x5E13C0	Ped::PositionAnyPedOutOfCollision	Loop step 3.5f should be 0.5f; inner x not reset; direction inverted. Grid completely wrong.	Entity/Ped/Ped.cpp
+0x5E1660	Ped::OurPedCanSeeThisEntity	Missing +1.0f z offset on LOS source position.	Entity/Ped/Ped.cpp
+0x5E1950	Ped::ClearLookFlag	Player/non-player look-restore times swapped (2000/4000 inverted).	Entity/Ped/Ped.cpp
+0x5E3A90	Ped::AddGogglesModel	Uses assert instead of RemoveGogglesModel() when goggles exist. Leaks in release.	Entity/Ped/Ped.cpp
+0x5E3B60	Ped::GetWeaponSkill	PRO threshold >= should be > (strictly greater).	Entity/Ped/Ped.cpp
+0x5E4000	Ped::TurnBody	Adjusts m_fCurrentRotation by PI but should adjust m_fLookDirection by TWO_PI. Wrong variable and constant.	Entity/Ped/Ped.cpp
+0x6B4200	Ped::DeadPedMakesTyresBloody	Uses GetLodSectorX/Y (200m, max 29) but original uses GetSectorX/Y (50m, max 119).	Entity/Ped/Ped.cpp
+0x5E4390	Ped::GiveObjectToPedToHold	Return type void but original returns CObject*. DropEntity called conditionally instead of unconditionally.	Entity/Ped/Ped.cpp
+0x5E4500	Ped::SetPedState	Sets m_nPedState BEFORE ReleaseCoverPoint/ClearBlip. Original sets AFTER. Side-effects see wrong state.	Entity/Ped/Ped.cpp
+0x5E4880	Ped::SetModelIndex	RNG call order: checks 3% first, skipping money rand() on hit. Desyncs global RNG.	Entity/Ped/Ped.cpp
+0x5E6370	Ped::RemoveWeaponWhenEnteringVehicle	Missing fallthrough: SMG slot no match + !jetpack should fall to RemoveWeaponModel.	Entity/Ped/Ped.cpp
+0x5E65A0	Ped::PreRenderAfterTest	Wobble: checks IsPlayer() but original checks !IsPlayer(). Inverted.	Entity/Ped/Ped.cpp
+0x5E7EC0	Ped::DettachPedFromEntity	DIE case ApplyMoveForce Z missing +4.0f.	Entity/Ped/Ped.cpp
+0x5E8030	Ped::Constructor	bHasACamera inverted: true when rand()%4!=0 (75%) but original when ==0 (25%).	Entity/Ped/Ped.cpp
+0x5E8830	Ped::SetAimFlag(float)	Missing m_fLookDirection=heading assignment.	Entity/Ped/Ped.cpp
+0x565300	World::FindMissionEntitiesIntersectingCubeSectorList	(1) IsPointWithin omits bounding radius expansion. (2) outCount only incremented when outEntities non-null; original always increments.	World.cpp
+0x565450	World::FindNearestObjectOfTypeSectorList	dist <= radius should be dist < outNearestDist. Wrong variable (fixed input vs running minimum) and wrong operator (<= vs <).	World.cpp
+0x566140	World::TestSphereAgainstSectorList	SetCurrentScanCode after collision/ignore checks instead of immediately after IsScanCodeCurrent. Filtered entities unmarked, causing redundant reprocessing.	World.cpp
+0x532AE0	Entity::SetModelIndex	Uses non-virtual CEntity::SetModelIndexNoCreate and CEntity::CreateRwObject. Original vtable-dispatches. Derived overrides lost.	Entity/Entity.cpp
+0x532DB0	Entity::BuildWindSockMatrix	Missing negation on wind direction x,y. Original: -(WindDir+0.01). Reversed: positive.	Entity/Entity.cpp
+0x533150	Entity::SetupBigBuilding	Sets m_bStreamingDontDelete (bit 10) but original sets m_bDontCastShadowsOn (bit 16). Wrong flag.	Entity/Entity.cpp
+0x533290	Entity::SetAtomicAlpha	RpGeometrySetFlags replaces all flags with 0x40. Should OR with existing.	Entity/Entity.cpp
+0x5332C0	Entity::SetRwObjectAlpha	rpATOMIC case missing geometry flags |= rpGEOMETRYMODULATEMATERIALCOLOR.	Entity/Entity.cpp
+0x533ED0	Entity::AttachToRwObject	Missing m_pMovingList null check before AddToMovingList.	Entity/Entity.cpp
+0x534120	Entity::GetBoundRect	CRect uninitialized. Original inits to {1e6,-1e6,-1e6,1e6}.	Entity/Entity.cpp
+0x535040	Entity::ModifyMatrixForBannerInWind	Multiplies by CWeather::Wind (continuous) but original uses discretized threshold (0.2/0.43/0.66).	Entity/Entity.cpp
+0x6FC7A0	Entity::ProcessLightsForEntity	(1) Sun glare corona ID wrong. (2) FLASH_RANDOM divides by 4096 not 2048. (3) FLASH_5ON_5OFF mode always 0 due to integer division order.	Entity/Entity.cpp
+0x717900	Entity::RemoveEscalatorsForEntity	Returns after first match. Original removes ALL matching escalators.	Entity/Entity.cpp
+0x609620	PlayerPed::IsHidden	bInVehicle condition inverted. Original checks !bInVehicle. Player hidden when NOT in vehicle.	Entity/Ped/PlayerPed.cpp
+0x60A0A0	PlayerPed::DisbandPlayerGroup	(1) Say CTX 0x94 should be 0x96. (2) RemoveAllFollowers conditional but original unconditional.	Entity/Ped/PlayerPed.cpp
+0x60B460	PlayerPed::MakeChangesForNewWeapon(type)	& should be | for animation flags. PLAYING & FINISH_AUTO_REMOVE = 0 (no-op). Same bug at 0x60D000.	Entity/Ped/PlayerPed.cpp
+0x60C5F0	PlayerPed::FindPedToAttack	(1) Infinite loop: GetSize() as condition, not i < GetSize(). (2) closestDist init max() vs 99999.9f.	Entity/Ped/PlayerPed.cpp
+0x60EA90	PlayerPed::ProcessControl	RadiansToDegrees(30/150/210/330) should be DegreesToRadians. All four angle comparisons ~1719 instead of ~0.524 rad.	Entity/Ped/PlayerPed.cpp
+0x70A2F0	Shadows::StoreShadowForPole	Shadow ID: entity->GetLod()+localId+3 dereferences m_pLod. Original: (uint32)entity+0x33+localId (pointer arithmetic). Null LOD causes collisions.	Shadows.cpp
+0x70AAA0	Shadows::RenderStoredShadows	Water shadow: vtxIt never incremented between 4 ProcessOneVertex calls. All 4 vertices overwrite same buffer slot.	Shadows.cpp
+0x70B730	Shadows::RenderExtraPlayerShadows	Up.z >= 0.f should be > 0.f. At exactly 0 side vector sign wrong.	Shadows.cpp
+0x70D040	Shadows::RenderIndicatorShadow	std::max(frontX, -sideX) should be std::max(frontX, -sideY). Wrong variable negated.	Shadows.cpp
