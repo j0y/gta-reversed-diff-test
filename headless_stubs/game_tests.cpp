@@ -20,6 +20,8 @@
 
 static FILE* s_resultFile = nullptr;
 
+
+
 static void TestLog(const char* fmt, ...) {
     char buf[1024];
     va_list args;
@@ -38,6 +40,47 @@ static void TestLog(const char* fmt, ...) {
         fprintf(s_resultFile, "%s\n", buf);
         fflush(s_resultFile);
     }
+}
+
+// ===================================================================
+// Model pre-loading (WARMUP phase only)
+// ===================================================================
+//
+// GAME_TEST_REQUEST_MODELS=481,461,...  -- ask the streamer for these model IDs
+// at the START of warmup, then let the warmup frames drive the load.
+//
+// This exists because tests run inside SuspendOtherThreads (see RUN_TESTS
+// below), which parks CdStreamThread. A blocking LoadAllRequestedModels() from
+// within a test therefore never returns -- the loader waits for streaming
+// channels that nothing is pumping. Requesting here instead costs nothing: the
+// frames were already going to elapse.
+//
+// Deliberately does NOT block or verify. A model that fails to arrive is the
+// test's problem to notice and report, not this hook's to force.
+static void RequestTestModels() {
+    const char* env = getenv("GAME_TEST_REQUEST_MODELS");
+    if (!env || !env[0]) {
+        return;
+    }
+    char buf[512];
+    strncpy(buf, env, sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = '\0';
+
+    int requested = 0;
+    for (char* tok = strtok(buf, ","); tok; tok = strtok(nullptr, ",")) {
+        while (*tok == ' ') tok++;
+        const int id = atoi(tok);
+        if (id <= 0) {
+            continue;
+        }
+        if (!CStreaming::IsModelLoaded(id)) {
+            // GAME_REQUIRED only. KEEP_IN_MEMORY would pin these for the whole
+            // run and perturb later tests' streaming budget.
+            CStreaming::RequestModel(id, STREAMING_GAME_REQUIRED);
+            requested++;
+        }
+    }
+    TestLog("GAME_TEST_REQUEST_MODELS: requested %d model(s)", requested);
 }
 
 // SEH wrapper — must be in a separate function from C++ destructors (MSVC limitation)
@@ -70,6 +113,9 @@ void GameTestRunnerOnFrame() {
             // Get warmup frame count from env (default 100 — enough for population to spawn)
             const char* envFrames = getenv("GAME_TEST_WARMUP_FRAMES");
             s_warmupFrames = envFrames ? atoi(envFrames) : 100;
+            // Ask for any test-required models NOW, so the warmup frames below
+            // stream them in while CdStreamThread is still running.
+            RequestTestModels();
             s_phase = RunnerPhase::WARMUP;
         }
         break;
@@ -78,8 +124,21 @@ void GameTestRunnerOnFrame() {
         // Let the game run to populate world with ambient peds/vehicles
         if (s_warmupFrames > 0) {
             s_warmupFrames--;
+            // Pump the streamer explicitly. The headless frame loop does not
+            // drive CStreaming's on-demand queue (the log shows only Init /
+            // InitImageList, never Update / LoadRequestedModels), so models
+            // asked for by RequestTestModels() sit requested-but-unloaded no
+            // matter how many warmup frames elapse. Servicing it here is safe:
+            // CdStreamThread is still running during WARMUP -- the deadlock the
+            // RequestTestModels comment warns about only occurs INSIDE tests,
+            // after SuspendOtherThreads parks that thread. Same call the game
+            // itself uses (Pools.cpp:224, Game.cpp:459).
+            CStreaming::LoadRequestedModels();
             return; // let game process this frame normally
         }
+        // Final flush: block until everything still queued is resident, so the
+        // tests see a fully-loaded set rather than a partially-streamed one.
+        CStreaming::LoadAllRequestedModels(false);
         s_phase = RunnerPhase::RUN_TESTS;
         break;
 
